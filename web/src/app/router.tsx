@@ -22,7 +22,7 @@ function Home() {
   if (!profile) return null
   if (profile.role === "admin") return <Navigate to="/admin" replace />
   if (!profile.conversation_id) return <p className="fail">Диалог не найден</p>
-  return <ChatPage conversationId={profile.conversation_id} title="Администратор" />
+  return <ChatPage conversationId={profile.conversation_id} title="Админ" />
 }
 
 function AdminChat() {
