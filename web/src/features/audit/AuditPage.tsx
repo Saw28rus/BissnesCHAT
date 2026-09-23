@@ -21,6 +21,7 @@ const LABEL: Record<string, string> = {
   "invoice.template": "Изменён шаблон счёта",
   "invoice.delete": "Счёт убран",
   "broadcast.send": "Отправлена рассылка",
+  "update.apply": "Запрошено обновление",
 }
 
 export function AuditPage() {

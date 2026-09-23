@@ -18,6 +18,7 @@ from app.modules.broadcast.router import router as broadcast_router
 from app.modules.conversations.router import router as conversations_router
 from app.modules.invoice_templates.router import router as invoice_templates_router
 from app.modules.invoice_templates.service import ensure_default as ensure_invoice_templates
+from app.modules.updates.router import router as updates_router
 from app.modules.yookassa.router import router as yookassa_router
 from app.realtime.router import router as realtime_router
 
@@ -56,11 +57,12 @@ def create_app() -> FastAPI:
     app.include_router(broadcast_router, prefix="/api")
     app.include_router(backup_router, prefix="/api")
     app.include_router(audit_router, prefix="/api")
+    app.include_router(updates_router, prefix="/api")
     app.include_router(realtime_router)
 
     @app.get("/api/health")
     async def health() -> dict:
-        return {"ok": True}
+        return {"ok": True, "sha": get_settings().git_sha}
 
     @app.exception_handler(AppError)
     async def app_error(_request: Request, exc: AppError) -> JSONResponse:

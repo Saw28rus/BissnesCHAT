@@ -21,6 +21,9 @@ const TEXT: Record<string, string> = {
   yookassa_unavailable: "ЮKassa сейчас не отвечает",
   yookassa_rejected: "ЮKassa не приняла запрос. Проверьте магазин и сумму",
   invoice_amount: "Сумма от 1 до 999 999,99 ₽",
+  update_github: "GitHub сейчас не ответил",
+  update_unavailable: "Обновление с этой кнопки на сервере ещё не включено",
+  update_current: "Уже стоит последняя версия",
 }
 
 export function errorText(code: string | undefined): string {

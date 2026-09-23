@@ -1,11 +1,13 @@
 import { Link } from "react-router-dom"
 import { SettingsPage } from "./SettingsPage"
+import { UpdatePanel } from "../updates/UpdatePanel"
 import "./settings.css"
 
 export function SettingsHub() {
   return (
     <section className="settings-hub">
       <h1>Настройки</h1>
+      <UpdatePanel />
       <div className="hub-grid">
         <Link className="hub-card" to="/admin/settings/yookassa">
           <strong>ЮKassa</strong>

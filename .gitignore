@@ -8,6 +8,7 @@ __pycache__/
 *.egg-info/
 server/data/
 server/tests/.tmp/
+var/
 web/node_modules/
 web/dist/
 web/dev-dist/

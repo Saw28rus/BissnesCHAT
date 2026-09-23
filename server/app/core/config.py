@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     disk_min_free_bytes: int = 5 * 1024 * 1024 * 1024
     session_days: int = 14
+    git_sha: str = "unknown"
+    github_repo: str = "Saw28rus/BissnesCHAT"
+    github_branch: str = "main"
+    update_request: str = ""
+    update_apply: bool = False
 
     @property
     def session_cookie(self) -> str:

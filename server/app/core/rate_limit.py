@@ -26,3 +26,4 @@ class RateLimiter:
 login_limiter = RateLimiter()
 message_limiter = RateLimiter()
 upload_limiter = RateLimiter()
+update_limiter = RateLimiter()

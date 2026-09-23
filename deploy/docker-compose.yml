@@ -31,8 +31,14 @@ services:
       TRUST_PROXY: "true"
       RATE_LIMIT_ENABLED: "true"
       DISK_MIN_FREE_BYTES: "5368709120"
+      GIT_SHA: ${GIT_SHA:-unknown}
+      UPDATE_REQUEST: /data/update/request
+      UPDATE_APPLY: ${UPDATE_APPLY:-false}
+      GITHUB_REPO: Saw28rus/BissnesCHAT
+      GITHUB_BRANCH: main
     volumes:
       - uploads:/data/uploads
+      - ${UPDATE_DIR:-../var}:/data/update
     depends_on:
       db:
         condition: service_healthy

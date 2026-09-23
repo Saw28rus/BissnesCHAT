@@ -7,6 +7,7 @@ type Props = {
   title: string
   text: string
   confirmLabel: string
+  busyLabel?: string
   cancelLabel?: string
   busy?: boolean
   onCancel: () => void
@@ -18,6 +19,7 @@ export function Confirm({
   title,
   text,
   confirmLabel,
+  busyLabel = "Удаляем",
   cancelLabel = "Отмена",
   busy = false,
   onCancel,
@@ -49,7 +51,7 @@ export function Confirm({
       <div className="confirm-actions">
         <Button type="button" disabled={busy} onClick={onCancel}>{cancelLabel}</Button>
         <Button type="button" tone="solid" disabled={busy} onClick={onConfirm}>
-          {busy ? "Удаляем" : confirmLabel}
+          {busy ? busyLabel : confirmLabel}
         </Button>
       </div>
     </dialog>
