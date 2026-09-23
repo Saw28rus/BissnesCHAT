@@ -117,7 +117,6 @@
   place-items: center;
 }
 .bubble.from-client .bubble-tool { color: color-mix(in srgb, var(--out-ink) 72%, transparent); }
-.bubble-tool.armed { color: var(--accent); }
 .deleted { margin: 0; font-size: 13px; font-style: italic; color: var(--muted); }
 .composer-dock {
   flex-shrink: 0;
@@ -213,7 +212,7 @@
   color: var(--muted);
   font-size: 14px;
 }
-.field-btn, .send-fab {
+.field-btn {
   width: 40px;
   height: 40px;
   flex-shrink: 0;
@@ -225,12 +224,22 @@
   place-items: center;
   border-radius: 20px;
 }
-.send-fab {
-  background: var(--accent);
-  color: var(--accent-ink);
+.field-btn.send { color: #3390ec; }
+.field-btn.send:disabled { opacity: 0.4; }
+.send-ok {
+  width: auto;
+  min-width: 40px;
+  padding: 0 8px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.02em;
 }
-.field-btn:focus-visible,
-.send-fab:focus-visible {
+.send-plane {
+  display: block;
+  transform: rotate(-16deg);
+  transform-origin: 52% 48%;
+}
+.field-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

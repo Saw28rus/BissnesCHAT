@@ -195,14 +195,18 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
               }}
             />
           )}
-          {canSend ? (
-            <button className="send-fab" type="submit" aria-label="Отправить">
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                <path d="M3 15.2 15.4 9 3 2.8v4.7l7 1.5-7 1.5z" fill="currentColor" />
+          {editing ? (
+            <button className="field-btn send send-ok" type="submit" aria-label="Сохранить" disabled={!text.trim()}>
+              ОК
+            </button>
+          ) : canSend ? (
+            <button className="field-btn send" type="submit" aria-label="Отправить">
+              <svg className="send-plane" width="28" height="28" viewBox="0 0 22 22" aria-hidden="true">
+                <path d="M3 11.1 19 4.2 13.1 18.4 11.4 12.3z" fill="currentColor" />
               </svg>
             </button>
           ) : recording ? (
-            <button className="send-fab" type="button" aria-label="Остановить запись" onClick={() => void toggleRecord()}>
+            <button className="field-btn rec" type="button" aria-label="Остановить запись" onClick={() => void toggleRecord()}>
               <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                 <rect x="6" y="6" width="6" height="6" fill="currentColor" />
               </svg>

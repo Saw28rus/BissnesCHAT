@@ -15,7 +15,6 @@ type Props = {
   selfId: string
   selfRole: "admin" | "client"
   older: string | null
-  pendingDelete: string | null
   onOlder: () => void
   onReply: (message: ChatMessage) => void
   onEdit: (message: ChatMessage) => void
@@ -27,7 +26,6 @@ export function MessageList({
   selfId,
   selfRole,
   older,
-  pendingDelete,
   onOlder,
   onReply,
   onEdit,
@@ -96,12 +94,7 @@ export function MessageList({
                     </button>
                   ) : null}
                   {mine ? (
-                    <button
-                      type="button"
-                      className={`bubble-tool ${pendingDelete === message.id ? "armed" : ""}`}
-                      aria-label="Удалить"
-                      onClick={() => onDelete(message)}
-                    >
+                    <button type="button" className="bubble-tool" aria-label="Удалить" onClick={() => onDelete(message)}>
                       <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
                         <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" strokeWidth="1.3" />
                       </svg>

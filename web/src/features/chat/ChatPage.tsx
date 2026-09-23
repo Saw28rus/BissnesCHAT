@@ -5,6 +5,7 @@ import { editText, loadMessages, removeMessage, sendFile, sendText, syncMessages
 import { Composer } from "./Composer"
 import { MessageList } from "./MessageList"
 import type { ChatMessage } from "./useSocket"
+import { Confirm } from "../../shared/ui/confirm/Confirm"
 import "./chat.css"
 
 function sortMessages(items: ChatMessage[]) {
@@ -38,7 +39,8 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
   const [older, setOlder] = useState<string | null>(null)
   const [reply, setReply] = useState<ChatMessage | null>(null)
   const [editing, setEditing] = useState<ChatMessage | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<string | null>(null)
+  const [toDelete, setToDelete] = useState<ChatMessage | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState("")
   const messagesRef = useRef(messages)
   messagesRef.current = messages
@@ -139,14 +141,19 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
     setMessages((current) => merge(current, saved))
   }
 
-  async function onDelete(message: ChatMessage) {
-    if (pendingDelete !== message.id) {
-      setPendingDelete(message.id)
-      return
+  async function confirmDelete() {
+    if (!toDelete) return
+    setDeleting(true)
+    setError("")
+    try {
+      const saved = await removeMessage(toDelete.id)
+      setMessages((current) => merge(current, saved))
+      setToDelete(null)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Не удалось удалить")
+    } finally {
+      setDeleting(false)
     }
-    const saved = await removeMessage(message.id)
-    setPendingDelete(null)
-    setMessages((current) => merge(current, saved))
   }
 
   const linkLabel = link === "live" ? "на связи" : link === "connecting" ? "соединение" : "нет связи"
@@ -164,17 +171,15 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
         </div>
       </header>
       {error ? <p className="fail composer-error">{error}</p> : null}
-      {pendingDelete ? <p className="hint composer-error">Нажмите значок удаления ещё раз, чтобы подтвердить.</p> : null}
       <MessageList
         messages={messages}
         selfId={profile?.id ?? ""}
         selfRole={profile?.role === "admin" ? "admin" : "client"}
         older={older}
-        pendingDelete={pendingDelete}
         onOlder={() => void onOlder()}
         onReply={(message) => { setEditing(null); setReply(message) }}
         onEdit={(message) => { setReply(null); setEditing(message) }}
-        onDelete={(message) => void onDelete(message)}
+        onDelete={(message) => setToDelete(message)}
       />
       <Composer
         reply={reply}
@@ -185,6 +190,15 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
         onSendFile={onSendFile}
         onSendVoice={onSendVoice}
         onEdit={onEdit}
+      />
+      <Confirm
+        open={Boolean(toDelete)}
+        title="Удалить сообщение?"
+        text="Оно исчезнет у вас и у собеседника. Вернуть нельзя."
+        confirmLabel="Удалить"
+        busy={deleting}
+        onCancel={() => { if (!deleting) setToDelete(null) }}
+        onConfirm={() => void confirmDelete()}
       />
     </section>
   )
