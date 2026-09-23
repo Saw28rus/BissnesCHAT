@@ -16,6 +16,11 @@ const TEXT: Record<string, string> = {
   not_found: "Не найдено",
   unauthorized: "Нужно войти снова",
   server_error: "Ошибка сервера",
+  yookassa_auth: "Неверный номер магазина или секретный ключ",
+  yookassa_not_connected: "Сначала подключите ЮKassa",
+  yookassa_unavailable: "ЮKassa сейчас не отвечает",
+  yookassa_rejected: "ЮKassa не приняла запрос. Проверьте магазин и сумму",
+  invoice_amount: "Сумма от 1 до 999 999,99 ₽",
 }
 
 export function errorText(code: string | undefined): string {

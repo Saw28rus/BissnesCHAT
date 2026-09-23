@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react"
 import { Link } from "react-router-dom"
 import { useSession } from "../../app/session"
-import { editText, loadMessages, removeMessage, sendFile, sendText, syncMessages } from "./api"
+import { editText, loadMessages, removeMessage, sendFile, sendInvoice, sendText, syncMessages } from "./api"
 import { Composer } from "./Composer"
+import { InvoiceForm } from "./InvoiceForm"
 import { MessageList } from "./MessageList"
 import type { ChatMessage } from "./useSocket"
 import { Confirm } from "../../shared/ui/confirm/Confirm"
+import { CopyButton } from "../../shared/ui/copy/CopyButton"
+import { loadYookassa } from "../yookassa/api"
 import "./chat.css"
 
 function sortMessages(items: ChatMessage[]) {
@@ -31,9 +34,10 @@ type Props = {
   conversationId: string
   title: string
   backTo?: string
+  client?: { id?: string; edo_id?: string | null }
 }
 
-export function ChatPage({ conversationId, title, backTo }: Props) {
+export function ChatPage({ conversationId, title, backTo, client }: Props) {
   const { profile, link, subscribe } = useSession()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [older, setOlder] = useState<string | null>(null)
@@ -41,9 +45,18 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
   const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [toDelete, setToDelete] = useState<ChatMessage | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [invoiceOpen, setInvoiceOpen] = useState(false)
+  const [invoiceBusy, setInvoiceBusy] = useState(false)
+  const [invoiceError, setInvoiceError] = useState("")
+  const [ykOn, setYkOn] = useState(false)
   const [error, setError] = useState("")
   const messagesRef = useRef(messages)
   messagesRef.current = messages
+
+  useEffect(() => {
+    if (profile?.role !== "admin") return
+    void loadYookassa().then((status) => setYkOn(status.connected)).catch(() => setYkOn(false))
+  }, [profile?.role])
 
   useEffect(() => {
     let ignore = false
@@ -79,7 +92,7 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
           message.sender_id !== profile.id &&
           Notification.permission === "granted"
         ) {
-          const kind = message.type === "file" ? "файл" : message.type === "voice" ? "голосовое" : "сообщение"
+          const kind = message.type === "file" ? "файл" : message.type === "voice" ? "голосовое" : message.type === "invoice" ? "счёт" : "сообщение"
           new Notification("Бизнес ЧАТ", { body: `${title}: ${kind}` })
         }
       }
@@ -91,6 +104,20 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
     const page = await loadMessages(conversationId, older)
     setMessages((current) => sortMessages([...page.messages, ...current]))
     setOlder(page.next_cursor)
+  }
+
+  async function onSendInvoice(payload: { amount: string; period: string; template_id?: string; days: number }) {
+    setInvoiceBusy(true)
+    setInvoiceError("")
+    try {
+      const saved = await sendInvoice(conversationId, payload, crypto.randomUUID())
+      setMessages((current) => merge(current, saved))
+      setInvoiceOpen(false)
+    } catch (reason) {
+      setInvoiceError(reason instanceof Error ? reason.message : "Счёт не выставлен")
+    } finally {
+      setInvoiceBusy(false)
+    }
   }
 
   async function onSendText(body: string) {
@@ -108,6 +135,7 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
       deleted_at: null,
       updated_at: new Date().toISOString(),
       attachment: null,
+      invoice: null,
       pending: true,
       client_nonce: clientNonce,
     }
@@ -167,6 +195,11 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
             <h1>{title}</h1>
             <span className={`presence ${online ? "on" : ""}`}>{online ? "В сети" : "Не в сети"}</span>
           </div>
+          {backTo && client?.edo_id ? (
+            <div className="chat-edo">
+              <CopyButton label="ЭДО" value={client.edo_id} />
+            </div>
+          ) : null}
         </div>
         {backTo ? null : (
           <Link className="gear-link" to="/settings" aria-label="Настройки">
@@ -194,6 +227,16 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
         onEdit={(message) => { setReply(null); setEditing(message) }}
         onDelete={(message) => setToDelete(message)}
       />
+      {invoiceOpen && profile?.role === "admin" ? (
+        <InvoiceForm
+          connected={ykOn}
+          busy={invoiceBusy}
+          error={invoiceError}
+          clientName={title}
+          onCancel={() => { setInvoiceOpen(false); setInvoiceError("") }}
+          onSend={onSendInvoice}
+        />
+      ) : null}
       <Composer
         reply={reply}
         editing={editing}
@@ -203,6 +246,7 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
         onSendFile={onSendFile}
         onSendVoice={onSendVoice}
         onEdit={onEdit}
+        onInvoice={profile?.role === "admin" ? () => { setEditing(null); setReply(null); setInvoiceOpen(true) } : undefined}
       />
       <Confirm
         open={Boolean(toDelete)}

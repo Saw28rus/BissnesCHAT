@@ -10,6 +10,12 @@ function dayLabel(value: string) {
   return new Intl.DateTimeFormat("ru", { day: "numeric", month: "long" }).format(new Date(value))
 }
 
+function money(amount: string, currency: string) {
+  const value = Number(amount)
+  if (Number.isNaN(value)) return `${amount} ${currency}`
+  return new Intl.NumberFormat("ru-RU", { style: "currency", currency }).format(value)
+}
+
 type Props = {
   messages: ChatMessage[]
   selfId: string
@@ -66,6 +72,23 @@ export function MessageList({
                 {message.reply_quote ? <div className="quote">{message.reply_quote}</div> : null}
                 {deleted ? <p className="deleted">Сообщение удалено</p> : null}
                 {!deleted && message.type === "text" ? <p>{message.body}</p> : null}
+                {!deleted && message.type === "invoice" ? (
+                  <>
+                    {message.body ? <p className="invoice-letter">{message.body}</p> : null}
+                    {message.invoice ? (
+                      <div className="invoice-card">
+                        <p className="invoice-kicker">{message.invoice.period ? `Счёт · ${message.invoice.period}` : "Счёт"}</p>
+                        <p className="invoice-sum">{money(message.invoice.amount, message.invoice.currency)}</p>
+                        {message.invoice.status === "pending" && message.invoice.pay_url ? (
+                          <a className="invoice-pay" href={message.invoice.pay_url} target="_blank" rel="noopener noreferrer">Оплатить</a>
+                        ) : null}
+                        {message.invoice.status === "succeeded" ? <p className="invoice-paid">Оплачен</p> : null}
+                        {message.invoice.status === "canceled" ? <p className="invoice-dead">Недействителен</p> : null}
+                        {message.invoice.test ? <p className="invoice-test">Тестовый платёж</p> : null}
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
                 {!deleted && message.type === "file" && message.attachment ? (
                   <a className="file-link" href={`/api/attachments/${message.attachment.id}`}>{message.attachment.name}</a>
                 ) : null}

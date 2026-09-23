@@ -11,6 +11,7 @@ type Props = {
   onSendFile: (file: File) => Promise<void>
   onSendVoice: (file: File, durationSec: number) => Promise<void>
   onEdit: (body: string) => Promise<void>
+  onInvoice?: () => void
 }
 
 function clock(seconds: number) {
@@ -25,7 +26,7 @@ function fitArea(node: HTMLTextAreaElement | null) {
   node.style.height = `${Math.min(node.scrollHeight, 140)}px`
 }
 
-export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendText, onSendFile, onSendVoice, onEdit }: Props) {
+export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendText, onSendFile, onSendVoice, onEdit, onInvoice }: Props) {
   const [text, setText] = useState("")
   const [recording, setRecording] = useState(false)
   const [elapsed, setElapsed] = useState(0)
@@ -167,11 +168,21 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
               </svg>
             </button>
           ) : (
-            <button className="field-btn" type="button" aria-label="Файл" onClick={() => fileRef.current?.click()}>
-              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M7 9.2v5.1a3 3 0 0 0 6 0V6.6a2.2 2.2 0 1 0-4.4 0v7.2a1.2 1.2 0 1 0 2.4 0V8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-              </svg>
-            </button>
+            <>
+              <button className="field-btn" type="button" aria-label="Файл" onClick={() => fileRef.current?.click()}>
+                <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M7 9.2v5.1a3 3 0 0 0 6 0V6.6a2.2 2.2 0 1 0-4.4 0v7.2a1.2 1.2 0 1 0 2.4 0V8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                </svg>
+              </button>
+              {onInvoice && !editing ? (
+                <button className="field-btn" type="button" aria-label="Счёт" onClick={onInvoice}>
+                  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                    <path d="M5.5 3.5h9v13l-1.2-.7-1.3.7-1.3-.7-1.2.7-1.3-.7-1.3.7-1.4-.7z" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                    <path d="M8 8h4.5M8 11h4.5M8 14h2.5" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                  </svg>
+                </button>
+              ) : null}
+            </>
           )}
           {recording ? (
             <>

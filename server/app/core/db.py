@@ -18,6 +18,42 @@ def import_models() -> None:
     from app.modules.auth import models as auth_models  # noqa: F401
     from app.modules.backup import models as backup_models  # noqa: F401
     from app.modules.conversations import models as conversation_models  # noqa: F401
+    from app.modules.invoice_templates import models as invoice_template_models  # noqa: F401
+    from app.modules.yookassa import models as yookassa_models  # noqa: F401
+
+
+def _add_missing_columns(connection) -> None:
+    from sqlalchemy import inspect, text
+
+    extras = {
+        "users": {
+            "phone": "ALTER TABLE users ADD COLUMN phone VARCHAR(32)",
+            "inn": "ALTER TABLE users ADD COLUMN inn VARCHAR(12)",
+            "edo_id": "ALTER TABLE users ADD COLUMN edo_id VARCHAR(64)",
+        },
+        "invoices": {
+            "period": "ALTER TABLE invoices ADD COLUMN period VARCHAR(64)",
+            "expires_at": "ALTER TABLE invoices ADD COLUMN expires_at DATETIME",
+            "deleted_at": "ALTER TABLE invoices ADD COLUMN deleted_at DATETIME",
+        },
+    }
+    inspector = inspect(connection)
+    tables = set(inspector.get_table_names())
+    for table, columns in extras.items():
+        if table not in tables:
+            continue
+        existing = {item["name"] for item in inspector.get_columns(table)}
+        for name, ddl in columns.items():
+            if name not in existing:
+                connection.execute(text(ddl))
+
+
+async def ensure_sqlite_columns() -> None:
+    engine = get_engine()
+    if not str(engine.url).startswith("sqlite"):
+        return
+    async with engine.begin() as connection:
+        await connection.run_sync(_add_missing_columns)
 
 
 def get_engine() -> AsyncEngine:

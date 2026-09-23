@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, TextareaHTMLAttributes } from "react"
+import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react"
 import "./field.css"
 
 type Props = InputHTMLAttributes<HTMLInputElement> & { label: string }
@@ -19,6 +19,17 @@ export function Area({ label, ...props }: AreaProps) {
     <label className="field">
       <span>{label}</span>
       <textarea {...props} />
+    </label>
+  )
+}
+
+type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & { label: string }
+
+export function Select({ label, children, ...props }: SelectProps) {
+  return (
+    <label className="field">
+      <span>{label}</span>
+      <select {...props}>{children}</select>
     </label>
   )
 }

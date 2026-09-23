@@ -8,7 +8,7 @@ import { Field } from "../../shared/ui/field/Field"
 import { applyThemeColor } from "../../shared/theme/color"
 import "./settings.css"
 
-export function SettingsPage() {
+export function SettingsPage({ nested = false }: { nested?: boolean }) {
   const { profile, refresh } = useSession()
   const [current, setCurrent] = useState("")
   const [next, setNext] = useState("")
@@ -53,9 +53,9 @@ export function SettingsPage() {
   if (!profile) return null
 
   return (
-    <section className="plain-page">
-      <Link to={profile.role === "admin" ? "/admin" : "/"}>Назад</Link>
-      <h1>Настройки</h1>
+    <section className={nested ? "settings-block" : "plain-page"}>
+      {nested ? null : <Link to={profile.role === "admin" ? "/admin/settings" : "/"}>Назад</Link>}
+      {nested ? <h2>Кабинет</h2> : <h1>Настройки</h1>}
       <p>{profile.display_name}</p>
       <div className="row-actions">
         <Button type="button" tone={profile.theme === "light" ? "solid" : "line"} onClick={() => void setTheme("light")}>Светлая</Button>

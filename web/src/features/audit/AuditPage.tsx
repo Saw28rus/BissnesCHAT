@@ -15,6 +15,12 @@ const LABEL: Record<string, string> = {
   "backup.export": "Скачана копия",
   "backup.restore": "Восстановлена копия",
   "admin.password": "Сменён пароль администратора",
+  "yookassa.connect": "Подключена ЮKassa",
+  "yookassa.disconnect": "Отключена ЮKassa",
+  "invoice.create": "Выставлен счёт",
+  "invoice.template": "Изменён шаблон счёта",
+  "invoice.delete": "Счёт убран",
+  "broadcast.send": "Отправлена рассылка",
 }
 
 export function AuditPage() {

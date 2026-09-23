@@ -32,8 +32,35 @@ def _preview(message: Message | None) -> str | None:
         return "Файл"
     if message.type == "voice":
         return "Голосовое"
+    if message.type == "invoice":
+        return "Счёт"
     text = message.body.strip()
     return text[:80]
+
+
+def _clean_opt(value: str | None, limit: int) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    return text[:limit] or None
+
+
+def _card(client: User, conversation_id: str | None, last_seen: str | None, preview: str | None, last_message_at: str | None) -> dict:
+    return {
+        "id": str(client.id),
+        "login": client.login,
+        "display_name": client.display_name,
+        "phone": client.phone,
+        "inn": client.inn,
+        "edo_id": client.edo_id,
+        "status": client.status,
+        "note": client.note,
+        "created_at": _iso(client.created_at),
+        "conversation_id": conversation_id,
+        "last_seen_at": last_seen,
+        "last_message_at": last_message_at,
+        "preview": preview,
+    }
 
 
 async def _login_taken(session: AsyncSession, login: str, except_id: uuid.UUID | None = None) -> bool:
@@ -53,7 +80,11 @@ async def list_clients(session: AsyncSession, query: str) -> list[dict]:
     if query.strip():
         needle = f"%{query.strip().casefold()}%"
         stmt = stmt.where(
-            func.lower(User.display_name).like(needle) | func.lower(User.login).like(needle)
+            func.lower(User.display_name).like(needle)
+            | func.lower(User.login).like(needle)
+            | func.lower(func.coalesce(User.phone, "")).like(needle)
+            | func.lower(func.coalesce(User.inn, "")).like(needle)
+            | func.lower(func.coalesce(User.edo_id, "")).like(needle)
         )
     clients = (await session.scalars(stmt)).all()
     if not clients:
@@ -88,17 +119,13 @@ async def list_clients(session: AsyncSession, query: str) -> list[dict]:
         conversation = by_client.get(client.id)
         preview = previews.get(conversation.id) if conversation else None
         result.append(
-            {
-                "id": str(client.id),
-                "login": client.login,
-                "display_name": client.display_name,
-                "status": client.status,
-                "note": client.note,
-                "created_at": _iso(client.created_at),
-                "conversation_id": str(conversation.id) if conversation else None,
-                "last_seen_at": seen.get(client.id),
-                "preview": _preview(preview),
-            }
+            _card(
+                client,
+                str(conversation.id) if conversation else None,
+                seen.get(client.id),
+                _preview(preview),
+                _iso(preview.created_at) if preview else None,
+            )
         )
     return result
 
@@ -113,6 +140,9 @@ async def create_client(session: AsyncSession, actor: User, payload: AccountCrea
         role="client",
         password_hash=hash_password(payload.password),
         display_name=payload.display_name.strip(),
+        phone=_clean_opt(payload.phone, 32),
+        inn=_clean_opt(payload.inn, 12),
+        edo_id=_clean_opt(payload.edo_id, 64),
         status="active",
         note=(payload.note or "").strip() or None,
         created_at=now,
@@ -141,10 +171,23 @@ async def update_client(session: AsyncSession, actor: User, account_id: uuid.UUI
         client.login = login
     if payload.display_name is not None:
         client.display_name = payload.display_name.strip()
+    if payload.phone is not None:
+        client.phone = _clean_opt(payload.phone, 32)
+    if payload.inn is not None:
+        client.inn = _clean_opt(payload.inn, 12)
+    if payload.edo_id is not None:
+        client.edo_id = _clean_opt(payload.edo_id, 64)
     if payload.note is not None:
         client.note = payload.note.strip() or None
     await record(session, actor.id, "account.update", client.id)
-    return {"id": str(client.id), "login": client.login, "display_name": client.display_name}
+    return {
+        "id": str(client.id),
+        "login": client.login,
+        "display_name": client.display_name,
+        "phone": client.phone,
+        "inn": client.inn,
+        "edo_id": client.edo_id,
+    }
 
 
 async def set_client_password(session: AsyncSession, actor: User, account_id: uuid.UUID, password: str) -> None:

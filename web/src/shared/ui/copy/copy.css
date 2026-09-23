@@ -1,0 +1,38 @@
+.copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.copy-chip {
+  min-height: 44px;
+  min-width: 0;
+  flex: 1 1 140px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--in);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  text-align: left;
+}
+.copy-chip small {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.copy-chip strong {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+.copy-chip.done { border-color: var(--accent); color: var(--accent); }
+.copy-chip.empty { opacity: 0.55; }
+.copy-chip:disabled { cursor: default; }

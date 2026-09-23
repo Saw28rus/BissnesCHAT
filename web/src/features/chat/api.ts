@@ -14,6 +14,17 @@ export async function syncMessages(conversationId: string, since: string) {
   )
 }
 
+export async function sendInvoice(
+  conversationId: string,
+  payload: { amount: string; period?: string; template_id?: string; days?: number },
+  clientNonce: string,
+) {
+  return api<ChatMessage>(`/api/conversations/${conversationId}/invoices`, {
+    method: "POST",
+    json: { ...payload, client_nonce: clientNonce },
+  })
+}
+
 export async function sendText(conversationId: string, body: string, clientNonce: string, replyToId?: string | null) {
   return api<ChatMessage>(`/api/conversations/${conversationId}/messages`, {
     method: "POST",

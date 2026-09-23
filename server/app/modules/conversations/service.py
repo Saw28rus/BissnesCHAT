@@ -17,6 +17,8 @@ from app.modules.attachments.storage import ensure_space, write_bytes
 from app.modules.conversations.access import get_conversation
 from app.modules.conversations.models import Conversation, Message, MessageRevision
 from app.modules.conversations.present import iso, present_message
+from app.modules.yookassa.models import Invoice
+from app.modules.yookassa.service import invoice_map, present_invoice, refresh_pending
 
 _PAGE = 50
 
@@ -45,9 +47,18 @@ async def attachment_map(session: AsyncSession, messages: list[Message]) -> dict
     return {row.id: row for row in rows}
 
 
-def present_many(messages: list[Message], attachments: dict[uuid.UUID, Attachment]) -> list[dict]:
+def present_many(
+    messages: list[Message],
+    attachments: dict[uuid.UUID, Attachment],
+    invoices: dict[uuid.UUID, Invoice] | None = None,
+) -> list[dict]:
+    mapping = invoices or {}
     return [
-        present_message(item, attachments.get(item.attachment_id) if item.attachment_id else None)
+        present_message(
+            item,
+            attachments.get(item.attachment_id) if item.attachment_id else None,
+            present_invoice(mapping.get(item.id), item.deleted_at is not None),
+        )
         for item in messages
     ]
 
@@ -72,9 +83,11 @@ async def list_messages(
         await session.scalars(stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(_PAGE))
     ).all()
     ordered = list(reversed(rows))
+    await refresh_pending(session, ordered)
     attachments = await attachment_map(session, ordered)
+    invoices = await invoice_map(session, ordered)
     next_cursor = encode_cursor(rows[-1]) if len(rows) == _PAGE else None
-    return {"messages": present_many(ordered, attachments), "next_cursor": next_cursor}
+    return {"messages": present_many(ordered, attachments, invoices), "next_cursor": next_cursor}
 
 
 async def sync_messages(
@@ -94,8 +107,11 @@ async def sync_messages(
             .limit(200)
         )
     ).all()
-    attachments = await attachment_map(session, list(rows))
-    return {"messages": present_many(list(rows), attachments)}
+    listed = list(rows)
+    await refresh_pending(session, listed)
+    attachments = await attachment_map(session, listed)
+    invoices = await invoice_map(session, listed)
+    return {"messages": present_many(listed, attachments, invoices)}
 
 
 async def create_text(
@@ -270,6 +286,8 @@ async def _quote(
         return "Файл", target.id
     if target.type == "voice":
         return "Голосовое", target.id
+    if target.type == "invoice":
+        return "Счёт", target.id
     return target.body.strip()[:140], target.id
 
 
@@ -307,4 +325,9 @@ async def _present_one(session: AsyncSession, message: Message) -> dict:
     attachment = None
     if message.attachment_id is not None and message.deleted_at is None:
         attachment = await session.get(Attachment, message.attachment_id)
-    return present_message(message, attachment)
+    invoices = await invoice_map(session, [message])
+    return present_message(
+        message,
+        attachment,
+        present_invoice(invoices.get(message.id), message.deleted_at is not None),
+    )

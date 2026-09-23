@@ -1,6 +1,6 @@
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field span { font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-.field input, .field textarea {
+.field input, .field textarea, .field select {
   width: 100%;
   border: 0;
   border-bottom: 1px solid var(--line);

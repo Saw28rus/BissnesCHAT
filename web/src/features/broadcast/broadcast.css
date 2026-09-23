@@ -1,0 +1,11 @@
+.pick-all, .pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+.pick-list { list-style: none; margin: 0 0 16px; padding: 0; }
+.pick-list li { border-top: 1px solid var(--line); }
+.pick-row span { display: flex; flex-direction: column; }
+.pick-row small { color: var(--muted); }
+.pick-all { margin: 8px 0; }

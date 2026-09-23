@@ -1,2 +1,25 @@
 .switch { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .plain-page > a { min-height: 44px; display: inline-flex; align-items: center; }
+.settings-hub {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-hub h1 { margin: 0; font-size: 22px; }
+.hub-grid { display: flex; flex-direction: column; gap: 8px; }
+.hub-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--in);
+  text-decoration: none;
+}
+.hub-card small { color: var(--muted); }
+.settings-block { display: flex; flex-direction: column; gap: 14px; }
+.settings-block h2 { margin: 0; font-size: 16px; }
+.settings-block .form-page { padding: 0; max-width: none; }

@@ -1,0 +1,73 @@
+.money-page { display: flex; flex-direction: column; }
+.money-head, .money-pad, .money-row { padding: 16px; }
+.money-head h1 { margin: 0 0 10px; font-size: 22px; }
+.money-head a,
+.money-row a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.money-create {
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.money-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  padding: 0 16px 8px;
+}
+.money-tabs button {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--in);
+  color: var(--muted);
+}
+.money-tabs button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.money-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--line);
+}
+.money-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.money-row small { color: var(--muted); }
+.letter-preview {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--in);
+  white-space: pre-wrap;
+  font-family: var(--font);
+  font-size: 14px;
+}
+.template-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.template-picks button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--in);
+}
+.template-picks button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}

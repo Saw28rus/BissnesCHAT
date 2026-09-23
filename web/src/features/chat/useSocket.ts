@@ -11,7 +11,7 @@ export type ChatMessage = {
   id: string
   conversation_id: string
   sender_id: string
-  type: "text" | "file" | "voice"
+  type: "text" | "file" | "voice" | "invoice"
   body: string
   reply_to_id: string | null
   reply_quote: string | null
@@ -25,6 +25,16 @@ export type ChatMessage = {
     content_type: string
     size: number
     duration_sec: number | null
+  }
+  invoice: null | {
+    amount: string
+    currency: string
+    description: string
+    period: string | null
+    status: "pending" | "succeeded" | "canceled"
+    pay_url: string | null
+    test: boolean
+    expires_at: string | null
   }
   pending?: boolean
   failed?: boolean

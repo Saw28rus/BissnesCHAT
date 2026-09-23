@@ -6,7 +6,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.core.db import dispose_engine, get_engine, get_sessionmaker, import_models
+from app.core.db import dispose_engine, ensure_sqlite_columns, get_engine, get_sessionmaker, import_models
 from app.core.errors import AppError
 from app.modules.accounts.router import router as accounts_router
 from app.modules.attachments.router import router as attachments_router
@@ -14,7 +14,11 @@ from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.auth.service import ensure_admin
 from app.modules.backup.router import router as backup_router
+from app.modules.broadcast.router import router as broadcast_router
 from app.modules.conversations.router import router as conversations_router
+from app.modules.invoice_templates.router import router as invoice_templates_router
+from app.modules.invoice_templates.service import ensure_default as ensure_invoice_templates
+from app.modules.yookassa.router import router as yookassa_router
 from app.realtime.router import router as realtime_router
 
 logger = logging.getLogger("bchat")
@@ -30,8 +34,10 @@ async def lifespan(_app: FastAPI):
 
         async with get_engine().begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
+        await ensure_sqlite_columns()
     async with get_sessionmaker()() as session:
         await ensure_admin(session)
+        await ensure_invoice_templates(session)
         await session.commit()
     yield
     await dispose_engine()
@@ -45,6 +51,9 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router, prefix="/api")
     app.include_router(conversations_router, prefix="/api")
     app.include_router(attachments_router, prefix="/api")
+    app.include_router(yookassa_router, prefix="/api")
+    app.include_router(invoice_templates_router, prefix="/api")
+    app.include_router(broadcast_router, prefix="/api")
     app.include_router(backup_router, prefix="/api")
     app.include_router(audit_router, prefix="/api")
     app.include_router(realtime_router)

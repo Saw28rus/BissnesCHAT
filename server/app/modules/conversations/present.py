@@ -12,7 +12,11 @@ def iso(value: datetime | None) -> str | None:
     return value.isoformat()
 
 
-def present_message(message: Message, attachment: Attachment | None = None) -> dict:
+def present_message(
+    message: Message,
+    attachment: Attachment | None = None,
+    invoice: dict | None = None,
+) -> dict:
     deleted = message.deleted_at is not None
     payload = {
         "id": str(message.id),
@@ -28,6 +32,7 @@ def present_message(message: Message, attachment: Attachment | None = None) -> d
         "updated_at": iso(message.updated_at),
         "client_nonce": str(message.client_nonce) if message.client_nonce else None,
         "attachment": None,
+        "invoice": None if deleted else invoice,
     }
     if attachment is not None and not deleted:
         payload["attachment"] = {
