@@ -29,6 +29,10 @@ input, textarea, select { font-size: 16px; }
 button { cursor: pointer; touch-action: manipulation; }
 a { color: inherit; touch-action: manipulation; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+::selection {
+  background: color-mix(in srgb, var(--accent) 32%, var(--in));
+  color: var(--ink);
+}
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; transition: none !important; }
 }

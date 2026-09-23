@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
-import { Button } from "../../shared/ui/button/Button"
 import type { ChatMessage } from "./useSocket"
 
 type Props = {
@@ -14,24 +13,54 @@ type Props = {
   onEdit: (body: string) => Promise<void>
 }
 
+function clock(seconds: number) {
+  const minutes = Math.floor(seconds / 60)
+  const rest = seconds % 60
+  return `${minutes}:${rest.toString().padStart(2, "0")}`
+}
+
+function fitArea(node: HTMLTextAreaElement | null) {
+  if (!node) return
+  node.style.height = "auto"
+  node.style.height = `${Math.min(node.scrollHeight, 140)}px`
+}
+
 export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendText, onSendFile, onSendVoice, onEdit }: Props) {
   const [text, setText] = useState("")
   const [recording, setRecording] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState("")
   const fileRef = useRef<HTMLInputElement>(null)
+  const areaRef = useRef<HTMLTextAreaElement>(null)
   const recorder = useRef<MediaRecorder | null>(null)
   const chunks = useRef<Blob[]>([])
   const started = useRef(0)
   const cancel = useRef(false)
+  const canSend = Boolean(text.trim()) && !recording
 
   useEffect(() => {
     setText(editing ? editing.body : "")
   }, [editing])
 
+  useEffect(() => {
+    fitArea(areaRef.current)
+  }, [text, recording])
+
+  useEffect(() => {
+    if (!recording) {
+      setElapsed(0)
+      return
+    }
+    const tick = window.setInterval(() => {
+      setElapsed(Math.floor((Date.now() - started.current) / 1000))
+    }, 200)
+    return () => window.clearInterval(tick)
+  }, [recording])
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     const body = text.trim()
-    if (!body) return
+    if (!body || recording) return
     setError("")
     try {
       if (editing) await onEdit(body)
@@ -97,55 +126,98 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     recorder.current?.stop()
   }
 
+  const quote = reply ? (reply.reply_quote || reply.body || "сообщение") : editing ? (editing.body || "сообщение") : ""
+
   return (
-    <>
-      {reply ? (
-        <div className="reply-bar">
-          <span className="hint">Ответ: {reply.reply_quote || reply.body || "сообщение"}</span>
-          <Button type="button" tone="quiet" onClick={onCancelReply}>Снять</Button>
+    <div className="composer-dock">
+      <form className="composer-shell" onSubmit={submit}>
+        {reply || editing ? (
+          <div className="composer-quote">
+            <span className="composer-quote-mark" aria-hidden="true" />
+            <span className="composer-quote-text">
+              <b>{editing ? "Правка" : "Ответ"}</b>
+              <span>{quote}</span>
+            </span>
+            <button
+              className="field-btn"
+              type="button"
+              aria-label="Снять"
+              onClick={editing ? onCancelEdit : onCancelReply}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+                <path d="M3.5 3.5l7 7M10.5 3.5l-7 7" fill="none" stroke="currentColor" strokeWidth="1.3" />
+              </svg>
+            </button>
+          </div>
+        ) : null}
+        <div className={`composer-row ${recording ? "rec" : ""}`}>
+          <input
+            ref={fileRef}
+            hidden
+            type="file"
+            onChange={(event) => {
+              void onFile(event.target.files?.[0])
+              event.currentTarget.value = ""
+            }}
+          />
+          {recording ? (
+            <button className="field-btn" type="button" aria-label="Отмена записи" onClick={stopWithoutSend}>
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" fill="none" stroke="currentColor" strokeWidth="1.4" />
+              </svg>
+            </button>
+          ) : (
+            <button className="field-btn" type="button" aria-label="Файл" onClick={() => fileRef.current?.click()}>
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M7 9.2v5.1a3 3 0 0 0 6 0V6.6a2.2 2.2 0 1 0-4.4 0v7.2a1.2 1.2 0 1 0 2.4 0V8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
+          {recording ? (
+            <>
+              <span className="rec-mark" aria-hidden="true" />
+              <span className="rec-time">{clock(elapsed)}</span>
+              <span className="rec-label">Запись</span>
+            </>
+          ) : (
+            <textarea
+              ref={areaRef}
+              value={text}
+              placeholder="Сообщение"
+              rows={1}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={(event) => {
+                const phone = window.matchMedia("(pointer: coarse)").matches
+                if (event.key === "Enter" && !event.shiftKey && !phone && !event.nativeEvent.isComposing) {
+                  event.preventDefault()
+                  event.currentTarget.form?.requestSubmit()
+                }
+              }}
+            />
+          )}
+          {canSend ? (
+            <button className="send-fab" type="submit" aria-label="Отправить">
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <path d="M3 15.2 15.4 9 3 2.8v4.7l7 1.5-7 1.5z" fill="currentColor" />
+              </svg>
+            </button>
+          ) : recording ? (
+            <button className="send-fab" type="button" aria-label="Остановить запись" onClick={() => void toggleRecord()}>
+              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                <rect x="6" y="6" width="6" height="6" fill="currentColor" />
+              </svg>
+            </button>
+          ) : (
+            <button className="field-btn" type="button" aria-label="Голосовое" onClick={() => void toggleRecord()}>
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10 3.2a2.4 2.4 0 0 0-2.4 2.4v4.2a2.4 2.4 0 1 0 4.8 0V5.6A2.4 2.4 0 0 0 10 3.2z" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M5.2 9.4a4.8 4.8 0 0 0 9.6 0M10 14.2V17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </svg>
+            </button>
+          )}
         </div>
-      ) : null}
-      {editing ? (
-        <div className="reply-bar">
-          <span className="hint">Правка сообщения</span>
-          <Button type="button" tone="quiet" onClick={onCancelEdit}>Снять</Button>
-        </div>
-      ) : null}
-      <form className="composer" onSubmit={submit}>
-        <input ref={fileRef} hidden type="file" onChange={(event) => void onFile(event.target.files?.[0])} />
-        <button className="icon-btn" type="button" aria-label="Файл" onClick={() => fileRef.current?.click()}>
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-            <path d="M4 2.5h6l4 4V15.5H4z" fill="none" stroke="currentColor" strokeWidth="1.2" />
-            <path d="M10 2.5V7h4" fill="none" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </button>
-        <textarea
-          value={text}
-          placeholder="Сообщение"
-          rows={1}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            const phone = window.matchMedia("(pointer: coarse)").matches
-            if (event.key === "Enter" && !event.shiftKey && !phone && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              event.currentTarget.form?.requestSubmit()
-            }
-          }}
-        />
-        <button className={`icon-btn ${recording ? "rec" : ""}`} type="button" aria-label="Голосовое" onClick={() => void toggleRecord()}>
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-            <circle cx="9" cy="9" r={recording ? 4 : 5} fill={recording ? "currentColor" : "none"} stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </button>
-        <Button className="send-btn" tone="solid" type="submit" aria-label="Отправить">
-          <span className="send-label">Отправить</span>
-          <svg className="send-icon" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-            <path d="M3 9h12M11 5l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.2" />
-          </svg>
-        </Button>
       </form>
-      {recording ? <div className="reply-bar"><span className="hint">Идёт запись</span><Button type="button" tone="quiet" onClick={stopWithoutSend}>Отмена</Button></div> : null}
       {error ? <p className="fail composer-error">{error}</p> : null}
-    </>
+    </div>
   )
 }

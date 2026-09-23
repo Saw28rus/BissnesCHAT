@@ -164,11 +164,13 @@ export function ChatPage({ conversationId, title, backTo }: Props) {
         </div>
       </header>
       {error ? <p className="fail composer-error">{error}</p> : null}
-      {pendingDelete ? <p className="hint composer-error">Нажмите «Удалить» ещё раз, чтобы подтвердить.</p> : null}
+      {pendingDelete ? <p className="hint composer-error">Нажмите значок удаления ещё раз, чтобы подтвердить.</p> : null}
       <MessageList
         messages={messages}
         selfId={profile?.id ?? ""}
+        selfRole={profile?.role === "admin" ? "admin" : "client"}
         older={older}
+        pendingDelete={pendingDelete}
         onOlder={() => void onOlder()}
         onReply={(message) => { setEditing(null); setReply(message) }}
         onEdit={(message) => { setReply(null); setEditing(message) }}

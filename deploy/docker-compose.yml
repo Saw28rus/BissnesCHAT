@@ -1,3 +1,5 @@
+name: bchat
+
 services:
   db:
     image: postgres:16-alpine
@@ -8,6 +10,11 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bchat -d bchat"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
 
   api:
     build:
@@ -27,7 +34,8 @@ services:
     volumes:
       - uploads:/data/uploads
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
   edge:
@@ -51,3 +59,4 @@ volumes:
   uploads:
   caddy-data:
   caddy-config:
+
