@@ -1,0 +1,13 @@
+:root,
+[data-theme="light"] {
+  --bg: #f3efe6;
+  --ink: #1a1814;
+  --line: #cfc6b8;
+  --accent: #9c3b2e;
+  --accent-ink: #f3efe6;
+  --muted: #6e675c;
+  --in: #fffdf8;
+  --out: #1a1814;
+  --out-ink: #f3efe6;
+  color-scheme: light;
+}

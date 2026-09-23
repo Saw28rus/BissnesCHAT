@@ -1,0 +1,2 @@
+.switch { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.plain-page > a { min-height: 44px; display: inline-flex; align-items: center; }

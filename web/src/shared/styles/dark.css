@@ -1,0 +1,14 @@
+[data-theme="dark"] {
+  --bg: #141311;
+  --ink: #efe8dc;
+  --line: #3a342c;
+  --accent: #e0b15a;
+  --accent-ink: #141311;
+  --muted: #a39888;
+  --in: #1e1b17;
+  --out: #e0b15a;
+  --out-ink: #141311;
+  --danger: #e0b15a;
+  --ok: #8fbf9f;
+  color-scheme: dark;
+}

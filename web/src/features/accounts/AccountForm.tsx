@@ -1,0 +1,89 @@
+import { useEffect, useState } from "react"
+import type { FormEvent } from "react"
+import { Link, useNavigate, useParams } from "react-router-dom"
+import { ApiError } from "../../shared/api/client"
+import { Button } from "../../shared/ui/button/Button"
+import { Area, Field } from "../../shared/ui/field/Field"
+import { blockAccount, changeClientPassword, createAccount, deleteAccount, loadAccounts, revokeSessions, unblockAccount, updateAccount } from "./api"
+
+export function AccountForm() {
+  const { accountId } = useParams()
+  const navigate = useNavigate()
+  const editing = Boolean(accountId)
+  const [displayName, setDisplayName] = useState("")
+  const [login, setLogin] = useState("")
+  const [password, setPassword] = useState("")
+  const [note, setNote] = useState("")
+  const [message, setMessage] = useState("")
+  const [error, setError] = useState("")
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  useEffect(() => {
+    if (!accountId) return
+    void loadAccounts("").then((items) => {
+      const current = items.find((item) => item.id === accountId)
+      if (!current) return
+      setDisplayName(current.display_name)
+      setLogin(current.login)
+      setNote(current.note ?? "")
+    })
+  }, [accountId])
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault()
+    setError("")
+    setMessage("")
+    try {
+      if (!editing) {
+        await createAccount({ display_name: displayName, login, password, note })
+        navigate("/admin")
+        return
+      }
+      await updateAccount(accountId as string, { display_name: displayName, login, note })
+      if (password) await changeClientPassword(accountId as string, password)
+      setMessage("Кабинет сохранён")
+      setPassword("")
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не сохранилось")
+    }
+  }
+
+  async function act(action: () => Promise<unknown>, done: string) {
+    setError("")
+    try {
+      await action()
+      setMessage(done)
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : "Не выполнилось")
+    }
+  }
+
+  return (
+    <form className="form-page" onSubmit={onSubmit}>
+      <Link to="/admin">К списку</Link>
+      <h1>{editing ? "Кабинет" : "Новый кабинет"}</h1>
+      <Field label="Имя" value={displayName} onChange={(event) => setDisplayName(event.target.value)} required />
+      <Field label="Логин" value={login} onChange={(event) => setLogin(event.target.value)} required autoComplete="off" />
+      <p className="hint">Логин латиницей: буквы, цифры, точка, дефис. Имя может быть по-русски.</p>
+      <Field label={editing ? "Новый пароль" : "Пароль"} type="password" value={password} onChange={(event) => setPassword(event.target.value)} required={!editing} autoComplete="new-password" />
+      <Area label="Заметка для себя" value={note} onChange={(event) => setNote(event.target.value)} />
+      {error ? <p className="fail">{error}</p> : null}
+      {message ? <p className="hint">{message}</p> : null}
+      <div className="row-actions">
+        <Button tone="solid" type="submit">{editing ? "Сохранить" : "Создать"}</Button>
+        {editing ? (
+          <>
+            <Button type="button" onClick={() => void act(() => revokeSessions(accountId as string), "Сеансы завершены")}>Завершить сеансы</Button>
+            <Button type="button" onClick={() => void act(() => blockAccount(accountId as string), "Кабинет заблокирован")}>Блокировать</Button>
+            <Button type="button" onClick={() => void act(() => unblockAccount(accountId as string), "Кабинет открыт")}>Открыть</Button>
+            <label className="switch">
+              <input type="checkbox" checked={confirmDelete} onChange={(event) => setConfirmDelete(event.target.checked)} />
+              Удалить переписку и файлы
+            </label>
+            <Button type="button" disabled={!confirmDelete} onClick={() => void act(async () => { await deleteAccount(accountId as string); navigate("/admin") }, "Удалено")}>Удалить кабинет</Button>
+          </>
+        ) : null}
+      </div>
+    </form>
+  )
+}

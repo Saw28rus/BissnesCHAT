@@ -1,0 +1,22 @@
+.btn {
+  min-height: 44px;
+  border: 1px solid var(--ink);
+  border-radius: var(--radius-field);
+  background: transparent;
+  padding: 0 14px;
+}
+.btn.solid {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn.quiet {
+  border-color: transparent;
+  min-height: 36px;
+  padding: 0 8px;
+  color: var(--muted);
+}
+@media (max-width: 800px) {
+  .btn.quiet { min-height: 44px; }
+}
+.btn:disabled { opacity: 0.45; cursor: default; }
