@@ -1,6 +1,6 @@
 # Бизнес ЧАТ — план продукта
 
-Приватный репозиторий: [Saw28rus/BissnesCHAT](https://github.com/Saw28rus/BissnesCHAT).
+Репозиторий: [Saw28rus/BissnesCHAT](https://github.com/Saw28rus/BissnesCHAT). Код ставится одной командой с GitHub. Переписка и кабинеты живут только на вашем сервере.
 
 Документ фиксирует первую версию: кто с кем говорит, как закрыт доступ, как устроена живая переписка и как кабинет поднимается на новом сервере из короткой копии. Следующие функции добавляются модулями и не ломают эти правила.
 
@@ -356,10 +356,10 @@ FastAPI (один процесс, порт наружу не открыт)
 
 ### Переезд на новый сервер
 
-Одна команда ставит Docker, секреты и контейнеры:
+С GitHub копируется одна команда, на сервере установщик спросит только домен:
 
 ```bash
-git clone git@github.com:Saw28rus/BissnesCHAT.git && cd BissnesCHAT && DOMAIN=chat.example.com bash deploy/install.sh
+curl -fsSL https://raw.githubusercontent.com/Saw28rus/BissnesCHAT/main/deploy/get.sh | bash
 ```
 
 Дальше:
@@ -407,6 +407,7 @@ git clone git@github.com:Saw28rus/BissnesCHAT.git && cd BissnesCHAT && DOMAIN=ch
 README.md
 PLAN.md
 deploy/
+  get.sh
   install.sh
   docker-compose.yml
   Caddyfile

@@ -4,35 +4,23 @@
 
 Репозиторий: https://github.com/Saw28rus/BissnesCHAT
 
-## Новый сервер — одна команда
+## Установка
 
-Нужны чистый VPS (2 CPU / 4 ГБ / 50 ГБ достаточно), Ubuntu или Debian, домен с A-записью на IP сервера и доступ к этому приватному репозиторию.
+На чистом VPS (Ubuntu или Debian), под root. Домен заранее смотрит A-записью на IP сервера, порты 80 и 443 открыты.
 
-```bash
-git clone git@github.com:Saw28rus/BissnesCHAT.git && cd BissnesCHAT && DOMAIN=chat.example.com bash deploy/install.sh
-```
-
-Подставьте свой домен вместо `chat.example.com`. Скрипт сам поставит Docker, если его нет, запишет секреты в `deploy/.env` и поднимет PostgreSQL, API и Caddy с HTTPS.
-
-Свой пароль администратора можно задать сразу:
+Скопируйте команду и вставьте на сервере:
 
 ```bash
-git clone git@github.com:Saw28rus/BissnesCHAT.git && cd BissnesCHAT && DOMAIN=chat.example.com ADMIN_PASSWORD='ваш-пароль' bash deploy/install.sh
+curl -fsSL https://raw.githubusercontent.com/Saw28rus/BissnesCHAT/main/deploy/get.sh | bash
 ```
 
-Если пароль не задан, его сгенерирует установщик и один раз напечатает. Сохраните его: в git он не попадает.
+Скрипт спросит только домен, поставит Docker и поднимет кабинет. Пароль администратора сгенерирует и один раз напечатает — сохраните его.
 
 Вход: `https://ваш-домен/login`
 
 ## Обновление
 
-На том же сервере:
-
-```bash
-cd BissnesCHAT && git pull && bash deploy/install.sh
-```
-
-`deploy/.env` уже есть — скрипт его не затирает, только пересобирает контейнеры.
+Та же команда. Домен и секреты в `deploy/.env` не затираются, контейнеры пересобираются.
 
 ## Переезд
 

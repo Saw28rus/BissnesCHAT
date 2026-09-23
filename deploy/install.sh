@@ -43,6 +43,31 @@ ADMIN_PASSWORD=${ADMIN_PASSWORD}
 EOF
 }
 
+normalize_domain() {
+  DOMAIN="${DOMAIN:-}"
+  DOMAIN="${DOMAIN#https://}"
+  DOMAIN="${DOMAIN#http://}"
+  DOMAIN="${DOMAIN%/}"
+  DOMAIN="${DOMAIN%%/*}"
+}
+
+ask_domain() {
+  echo "Домен, по которому откроется кабинет. Без https://, например chat.firma.ru"
+  printf "Домен: "
+  if [[ -r /dev/tty ]]; then
+    read -r DOMAIN < /dev/tty
+  else
+    read -r DOMAIN
+  fi
+}
+
+valid_domain() {
+  [[ "$DOMAIN" == *.* ]] || return 1
+  [[ "$DOMAIN" != *[[:space:]]* ]] || return 1
+  [[ "$DOMAIN" != *@* ]] || return 1
+  [[ ${#DOMAIN} -ge 4 && ${#DOMAIN} -le 253 ]] || return 1
+}
+
 echo "Бизнес ЧАТ — установка"
 
 if ! need curl || ! need openssl; then
@@ -68,15 +93,15 @@ if ! docker compose version >/dev/null 2>&1; then
 fi
 
 load_env
-
-DOMAIN="${DOMAIN:-}"
-DOMAIN="${DOMAIN#https://}"
-DOMAIN="${DOMAIN#http://}"
-DOMAIN="${DOMAIN%/}"
+normalize_domain
 
 if [[ -z "$DOMAIN" ]]; then
-  echo "Задайте домен. Пример:"
-  echo "  DOMAIN=chat.firma.ru bash deploy/install.sh"
+  ask_domain
+  normalize_domain
+fi
+
+if ! valid_domain; then
+  echo "Не похоже на домен. Нужен вид chat.firma.ru — без https:// и без пути."
   exit 1
 fi
 
