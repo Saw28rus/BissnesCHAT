@@ -1,11 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { type ReactNode } from "react"
 import { Navigate, Route, Routes, useParams } from "react-router-dom"
 import { useSession } from "./session"
 import { LoginPage } from "../features/auth/LoginPage"
 import { ChatPage } from "../features/chat/ChatPage"
 import { AdminLayout } from "../features/admin-shell/AdminLayout"
 import { ChatDesk } from "../features/chats/ChatDesk"
-import { loadAccounts, type AccountCard } from "../features/accounts/api"
+import { useAccounts } from "../features/accounts/useAccounts"
 import { AccountForm } from "../features/accounts/AccountForm"
 import { ClientCards } from "../features/accounts/ClientCards"
 import { BackupPage } from "../features/backup/BackupPage"
@@ -35,14 +35,8 @@ function Home() {
 
 function AdminChat() {
   const { conversationId } = useParams()
-  const [client, setClient] = useState<AccountCard | null>(null)
-  useEffect(() => {
-    if (!conversationId) return
-    void loadAccounts("").then((items) => {
-      const found = items.find((item) => item.conversation_id === conversationId)
-      if (found) setClient(found)
-    }).catch(() => undefined)
-  }, [conversationId])
+  const { data } = useAccounts()
+  const client = data?.find((item) => item.conversation_id === conversationId)
   if (!conversationId) return null
   return (
     <ChatPage

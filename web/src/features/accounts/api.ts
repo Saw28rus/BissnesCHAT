@@ -25,8 +25,13 @@ type AccountPayload = {
   note?: string
 }
 
-export function loadAccounts(query: string) {
-  return api<AccountCard[]>(`/api/accounts?q=${encodeURIComponent(query)}`)
+export function loadAccounts(query = "") {
+  const suffix = query ? `?q=${encodeURIComponent(query)}` : ""
+  return api<AccountCard[]>(`/api/accounts${suffix}`)
+}
+
+export function loadAccount(id: string) {
+  return api<AccountCard>(`/api/accounts/${id}`)
 }
 
 export function createAccount(payload: AccountPayload & { password: string }) {

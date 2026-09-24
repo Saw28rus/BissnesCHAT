@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import { Button } from "../../shared/ui/button/Button"
 import { Confirm } from "../../shared/ui/confirm/Confirm"
-import { applyUpdate, loadUpdate, type UpdateStatus } from "./api"
+import { applyUpdate, loadUpdate } from "./api"
 import { beginUpdate } from "./progress"
 import "./updates.css"
 
@@ -12,34 +14,26 @@ function shortSha(value: string | null | undefined) {
 }
 
 export function UpdatePanel() {
-  const [status, setStatus] = useState<UpdateStatus | null>(null)
-  const [error, setError] = useState("")
+  const query = useQuery({
+    queryKey: keys.updates,
+    queryFn: loadUpdate,
+    staleTime: 60 * 1000,
+  })
+  const status = query.data
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState(false)
-
-  async function refresh() {
-    setError("")
-    try {
-      setStatus(await loadUpdate())
-    } catch {
-      setError("Не удалось проверить обновление")
-    }
-  }
-
-  useEffect(() => {
-    void refresh()
-  }, [])
+  const [applyError, setApplyError] = useState("")
 
   async function apply() {
     setConfirm(false)
     setBusy(true)
-    setError("")
+    setApplyError("")
     const previous = status?.current || "unknown"
     try {
       await applyUpdate()
       beginUpdate(previous)
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Не удалось обновить")
+      setApplyError(reason instanceof ApiError ? reason.message : "Не удалось обновить")
     } finally {
       setBusy(false)
     }
@@ -47,6 +41,7 @@ export function UpdatePanel() {
 
   const available = Boolean(status?.available)
   const canApply = Boolean(status?.can_apply)
+  const error = applyError || (query.isError ? "Не удалось проверить обновление" : "")
 
   return (
     <div className="update-panel">
@@ -67,7 +62,7 @@ export function UpdatePanel() {
       ) : null}
       {error ? <p className="fail">{error}</p> : null}
       <div className="row-actions">
-        <Button type="button" tone="quiet" disabled={busy} onClick={() => void refresh()}>
+        <Button type="button" tone="quiet" disabled={busy || query.isFetching} onClick={() => void query.refetch()}>
           Проверить
         </Button>
         {available && canApply ? (

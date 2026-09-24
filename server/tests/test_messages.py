@@ -305,3 +305,19 @@ async def test_block_and_password_reset(client):
     refused = await login(client, "forgetful", "replacement1")
     assert refused.status_code == 403
     assert refused.json()["error"] == "blocked"
+
+
+async def test_admin_reads_one_account(client):
+    account = await _client(client, "one.card")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    assert (await login(client, "admin", "adminpassword1")).status_code == 200
+    one = await client.get(f"/api/accounts/{account['id']}")
+    assert one.status_code == 200
+    body = one.json()
+    assert body["login"] == "one.card"
+    assert body["conversation_id"] == account["conversation_id"]
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    assert (await login(client, "one.card", "clientpass12")).status_code == 200
+    hidden = await client.get(f"/api/accounts/{account['id']}")
+    assert hidden.status_code == 404
+

@@ -1,17 +1,12 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { FormEvent } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { api, apiBlob, ApiError } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import { Button } from "../../shared/ui/button/Button"
 import { Field } from "../../shared/ui/field/Field"
+import { useBackupStatus } from "./useBackupStatus"
 import "./backup.css"
-
-type Status = {
-  free_bytes: number
-  upload_bytes: number
-  uploads_blocked: boolean
-  last_export_at: string | null
-  reminder: boolean
-}
 
 type Preview = {
   preview_id: string
@@ -27,7 +22,9 @@ function megabytes(value: number) {
 }
 
 export function BackupPage() {
-  const [status, setStatus] = useState<Status | null>(null)
+  const queryClient = useQueryClient()
+  const query = useBackupStatus()
+  const status = query.data
   const [password, setPassword] = useState("")
   const [includeMessages, setIncludeMessages] = useState(true)
   const [file, setFile] = useState<File | null>(null)
@@ -35,10 +32,6 @@ export function BackupPage() {
   const [preview, setPreview] = useState<Preview | null>(null)
   const [report, setReport] = useState("")
   const [error, setError] = useState("")
-
-  useEffect(() => {
-    void api<Status>("/api/backup/status").then(setStatus).catch(() => setError("Статус копии не загрузился"))
-  }, [])
 
   async function download(event: FormEvent) {
     event.preventDefault()
@@ -54,7 +47,7 @@ export function BackupPage() {
       link.download = "bchat-backup.bin"
       link.click()
       URL.revokeObjectURL(url)
-      setStatus(await api<Status>("/api/backup/status"))
+      await queryClient.invalidateQueries({ queryKey: keys.backup })
       setReport("Файл скачан. Пароль шифрования храните отдельно: сервер его не помнит.")
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось скачать копию")
@@ -84,6 +77,10 @@ export function BackupPage() {
         "/api/backup/restore",
         { method: "POST", json: { preview_id: preview.preview_id } },
       )
+      queryClient.removeQueries({ queryKey: ["messages"] })
+      await queryClient.invalidateQueries({ queryKey: keys.accounts })
+      await queryClient.invalidateQueries({ queryKey: keys.invoicesRoot })
+      await queryClient.invalidateQueries({ queryKey: keys.backup })
       setReport(`Создано ${result.created}, обновлено ${result.updated}, пропущено ${result.skipped}, писем ${result.messages}.`)
       setPreview(null)
     } catch (reason) {
@@ -95,6 +92,7 @@ export function BackupPage() {
     <section className="plain-page backup-grid">
       <h1>Резервная копия</h1>
       <p className="hint">В файле кабинеты, настройки и, если включено, текст за последние сутки. Голосовых и документов там нет.</p>
+      {query.isError ? <p className="fail">Статус копии не загрузился</p> : null}
       {status ? (
         <p className="stat">
           Файлы занимают {megabytes(status.upload_bytes)}. Свободно {megabytes(status.free_bytes)}.

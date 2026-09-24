@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { api } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import "./audit.css"
 
 type Row = { id: string; action: string; target_id: string | null; created_at: string }
@@ -25,10 +26,12 @@ const LABEL: Record<string, string> = {
 }
 
 export function AuditPage() {
-  const [rows, setRows] = useState<Row[]>([])
-  useEffect(() => {
-    void api<Row[]>("/api/audit").then(setRows)
-  }, [])
+  const query = useQuery({
+    queryKey: keys.audit,
+    queryFn: () => api<Row[]>("/api/audit"),
+    staleTime: 0,
+  })
+  const rows = query.data ?? []
   return (
     <section className="plain-page">
       <h1>Журнал</h1>

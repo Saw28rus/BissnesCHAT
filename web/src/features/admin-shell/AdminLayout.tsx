@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
-import { api } from "../../shared/api/client"
+import { useBackupStatus } from "../backup/useBackupStatus"
+import { useAccounts } from "../accounts/useAccounts"
 import { UpdateScreen } from "../updates/UpdateScreen"
 import "./admin-shell.css"
 
@@ -20,14 +21,10 @@ export function AdminLayout() {
   const location = useLocation()
   const chatOpen = chatOpenPath(location.pathname)
   const desk = location.pathname.startsWith("/admin/chats") && !location.pathname.startsWith("/admin/chats/broadcast")
-  const [reminder, setReminder] = useState(false)
+  const { data: backup } = useBackupStatus()
+  useAccounts()
+  const reminder = Boolean(backup?.reminder)
   const [pressed, setPressed] = useState<string | null>(null)
-
-  useEffect(() => {
-    void api<{ reminder: boolean }>("/api/backup/status")
-      .then((status) => setReminder(status.reminder))
-      .catch(() => setReminder(false))
-  }, [])
 
   return (
     <div className={`shell ${chatOpen ? "chat-open" : ""} ${desk ? "desk-mode" : ""}`}>

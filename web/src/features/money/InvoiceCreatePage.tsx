@@ -1,40 +1,42 @@
 import { useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import { Button } from "../../shared/ui/button/Button"
 import { Field, Select } from "../../shared/ui/field/Field"
-import { loadAccounts, type AccountCard } from "../accounts/api"
-import { loadYookassa } from "../yookassa/api"
-import { createInvoice, loadTemplates, type InvoiceTemplate } from "./api"
+import { useAccounts } from "../accounts/useAccounts"
+import { useYookassa } from "../yookassa/useYookassa"
+import { createInvoice } from "./api"
+import { useTemplates } from "./useMoney"
 import { expiresPreview, fillLetter, formatRub, periodCaption, previousMonthValue } from "./letter"
 import "./money.css"
 
 export function InvoiceCreatePage() {
   const navigate = useNavigate()
-  const [clients, setClients] = useState<AccountCard[]>([])
-  const [templates, setTemplates] = useState<InvoiceTemplate[]>([])
+  const queryClient = useQueryClient()
+  const accounts = useAccounts()
+  const templatesQuery = useTemplates()
+  const yookassa = useYookassa()
+  const clients = (accounts.data ?? []).filter((item) => item.status === "active" && item.conversation_id)
+  const templates = templatesQuery.data ?? []
   const [conversationId, setConversationId] = useState("")
   const [amount, setAmount] = useState("1800")
   const [period, setPeriod] = useState(previousMonthValue())
   const [templateId, setTemplateId] = useState("")
   const [days, setDays] = useState("7")
-  const [connected, setConnected] = useState(true)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
+  const connected = yookassa.data?.connected !== false
 
   useEffect(() => {
-    void loadAccounts("").then((rows) => {
-      const active = rows.filter((item) => item.status === "active" && item.conversation_id)
-      setClients(active)
-      if (active[0]?.conversation_id) setConversationId(active[0].conversation_id)
-    }).catch(() => setError("Список клиентов не открылся"))
-    void loadTemplates().then((rows) => {
-      setTemplates(rows)
-      if (rows[0]) setTemplateId(rows[0].id)
-    }).catch(() => undefined)
-    void loadYookassa().then((status) => setConnected(status.connected)).catch(() => setConnected(false))
-  }, [])
+    if (!conversationId && clients[0]?.conversation_id) setConversationId(clients[0].conversation_id)
+  }, [clients, conversationId])
+
+  useEffect(() => {
+    if (!templateId && templates[0]) setTemplateId(templates[0].id)
+  }, [templates, templateId])
 
   const client = clients.find((item) => item.conversation_id === conversationId)
   const template = templates.find((item) => item.id === templateId)
@@ -62,6 +64,7 @@ export function InvoiceCreatePage() {
         template_id: templateId || undefined,
         days: Number(days) || 7,
       })
+      await queryClient.invalidateQueries({ queryKey: keys.invoicesRoot })
       navigate("/admin/money")
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Счёт не выставлен")
@@ -92,6 +95,7 @@ export function InvoiceCreatePage() {
       <Field label="Срок, дней" inputMode="numeric" min={1} max={30} value={days} onChange={(event) => setDays(event.target.value)} required />
       {preview ? <pre className="letter-preview">{preview}</pre> : null}
       {error ? <p className="fail">{error}</p> : null}
+      {accounts.isError ? <p className="fail">Список клиентов не открылся</p> : null}
       <Button type="submit" tone="solid" disabled={busy || !connected || !conversationId}>
         {busy ? "Выставляем" : "Отправить в чат"}
       </Button>

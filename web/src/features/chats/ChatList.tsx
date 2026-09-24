@@ -1,17 +1,8 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
-import { useSession } from "../../app/session"
 import { Field } from "../../shared/ui/field/Field"
-import { loadAccounts, type AccountCard } from "../accounts/api"
-
-function sortChats(items: AccountCard[]) {
-  return items.slice().sort((left, right) => {
-    const emptyLeft = left.last_message_at ? 0 : 1
-    const emptyRight = right.last_message_at ? 0 : 1
-    if (emptyLeft !== emptyRight) return emptyLeft - emptyRight
-    return (right.last_message_at || "").localeCompare(left.last_message_at || "")
-  })
-}
+import { filterAccounts, useAccounts } from "../accounts/useAccounts"
+import { sortChats } from "../accounts/filter"
 
 function stamp(value: string | null) {
   if (!value) return ""
@@ -22,42 +13,9 @@ function stamp(value: string | null) {
 
 export function ChatList() {
   const { conversationId } = useParams()
-  const { subscribe } = useSession()
+  const { data, isError, isPending } = useAccounts()
   const [query, setQuery] = useState("")
-  const queryRef = useRef(query)
-  queryRef.current = query
-  const [items, setItems] = useState<AccountCard[]>([])
-  const [error, setError] = useState("")
-
-  async function reload(next = queryRef.current) {
-    try {
-      setItems(sortChats(await loadAccounts(next)))
-      setError("")
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Список не открылся")
-    }
-  }
-
-  useEffect(() => {
-    void reload("")
-    return subscribe((event) => {
-      if (
-        event.type === "client.updated" ||
-        event.type === "message.created" ||
-        event.type === "message.updated" ||
-        event.type === "message.deleted"
-      ) void reload()
-    })
-  }, [subscribe])
-
-  useEffect(() => {
-    if (!query) {
-      void reload("")
-      return
-    }
-    const timer = window.setTimeout(() => void reload(query), 180)
-    return () => window.clearTimeout(timer)
-  }, [query])
+  const items = sortChats(filterAccounts(data, query))
 
   return (
     <aside className="chat-list">
@@ -69,7 +27,7 @@ export function ChatList() {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Имя, телефон, ЭДО, ИНН"
         />
-        {error ? <p className="fail">{error}</p> : null}
+        {isError ? <p className="fail">Список не открылся</p> : null}
       </header>
       {items.map((item) => {
         const empty = !item.last_message_at
@@ -87,7 +45,7 @@ export function ChatList() {
           </Link>
         )
       })}
-      {items.length === 0 ? <p className="hint chat-row">Диалогов пока нет.</p> : null}
+      {isPending ? null : items.length === 0 ? <p className="hint chat-row">Диалогов пока нет.</p> : null}
     </aside>
   )
 }

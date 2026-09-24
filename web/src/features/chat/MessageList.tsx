@@ -18,6 +18,7 @@ function money(amount: string, currency: string) {
 
 type Props = {
   messages: ChatMessage[]
+  loading?: boolean
   selfId: string
   selfRole: "admin" | "client"
   older: string | null
@@ -29,6 +30,7 @@ type Props = {
 
 export function MessageList({
   messages,
+  loading = false,
   selfId,
   selfRole,
   older,
@@ -56,7 +58,8 @@ export function MessageList({
   return (
     <div className="thread" ref={box} onScroll={onScroll}>
       {older ? <Button type="button" tone="quiet" onClick={onOlder}>Более ранние</Button> : null}
-      {messages.length === 0 ? <p className="hint">Переписка ещё пустая.</p> : null}
+      {loading ? <p className="hint">Открываем переписку</p> : null}
+      {!loading && messages.length === 0 ? <p className="hint">Переписка ещё пустая.</p> : null}
       {messages.map((message) => {
         const day = dayLabel(message.created_at)
         const showDay = day !== previousDay

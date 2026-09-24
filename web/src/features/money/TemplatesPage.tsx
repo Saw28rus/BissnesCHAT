@@ -1,35 +1,37 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
 import { Link } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import { Button } from "../../shared/ui/button/Button"
 import { Area, Field } from "../../shared/ui/field/Field"
-import { createTemplate, deleteTemplate, loadTemplates, updateTemplate, type InvoiceTemplate } from "./api"
+import { createTemplate, deleteTemplate, updateTemplate, type InvoiceTemplate } from "./api"
+import { useTemplates } from "./useMoney"
 import "./money.css"
 
 const HINT = "В тексте можно вставить {name}, {period}, {amount}, {url} и {expires}."
 
 export function TemplatesPage() {
-  const [items, setItems] = useState<InvoiceTemplate[]>([])
+  const queryClient = useQueryClient()
+  const query = useTemplates()
+  const items = query.data ?? []
   const [title, setTitle] = useState("Ежемесячный счёт")
   const [body, setBody] = useState("")
   const [currentId, setCurrentId] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [message, setMessage] = useState("")
 
-  async function reload() {
-    const rows = await loadTemplates()
-    setItems(rows)
-    if (!currentId && rows[0]) {
-      setCurrentId(rows[0].id)
-      setTitle(rows[0].title)
-      setBody(rows[0].body)
-    }
-  }
-
   useEffect(() => {
-    void reload().catch(() => setError("Шаблоны не открылись"))
-  }, [])
+    if (currentId || !items[0]) return
+    setCurrentId(items[0].id)
+    setTitle(items[0].title)
+    setBody(items[0].body)
+  }, [items, currentId])
+
+  function write(rows: InvoiceTemplate[]) {
+    queryClient.setQueryData(keys.templates, rows)
+  }
 
   function pick(item: InvoiceTemplate) {
     setCurrentId(item.id)
@@ -46,12 +48,12 @@ export function TemplatesPage() {
     try {
       if (currentId) {
         const saved = await updateTemplate(currentId, { title, body })
-        setItems((rows) => rows.map((item) => item.id === saved.id ? saved : item))
+        write(items.map((item) => (item.id === saved.id ? saved : item)))
         setMessage("Шаблон сохранён")
         return
       }
       const created = await createTemplate(title, body)
-      setItems((rows) => [...rows, created])
+      write([...items, created])
       setCurrentId(created.id)
       setMessage("Шаблон создан")
     } catch (reason) {
@@ -72,7 +74,7 @@ export function TemplatesPage() {
     try {
       await deleteTemplate(currentId)
       const rows = items.filter((item) => item.id !== currentId)
-      setItems(rows)
+      write(rows)
       if (rows[0]) pick(rows[0])
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Нельзя удалить последний шаблон")
@@ -84,6 +86,7 @@ export function TemplatesPage() {
       <Link to="/admin/money">К счетам</Link>
       <h1>Шаблоны счетов</h1>
       <p className="hint">{HINT}</p>
+      {query.isError ? <p className="fail">Шаблоны не открылись</p> : null}
       <div className="template-picks">
         {items.map((item) => (
           <button

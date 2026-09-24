@@ -9,6 +9,7 @@ from app.modules.accounts.schemas import AccountCreate, AccountPassword, Account
 from app.modules.accounts.service import (
     create_client,
     delete_client,
+    get_client_card,
     list_clients,
     revoke_client_sessions,
     set_blocked,
@@ -29,6 +30,16 @@ async def get_accounts(
 ) -> list[dict]:
     await require_admin(request, session)
     return await list_clients(session, q)
+
+
+@router.get("/{account_id}")
+async def get_account(
+    account_id: UUID,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    await require_admin(request, session)
+    return await get_client_card(session, account_id)
 
 
 @router.post("", status_code=201)

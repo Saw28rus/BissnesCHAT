@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import { Button } from "../../shared/ui/button/Button"
 import { Confirm } from "../../shared/ui/confirm/Confirm"
-import { loadYookassa } from "../yookassa/api"
-import { hideInvoice, loadInvoices, type InvoiceBucket, type InvoiceRow } from "./api"
+import { useYookassa } from "../yookassa/useYookassa"
+import { hideInvoice, type InvoiceBucket, type InvoiceRow } from "./api"
+import { useInvoices } from "./useMoney"
 import { formatRub } from "./letter"
 import "./money.css"
 
@@ -21,29 +24,15 @@ function moneyStamp(value: string | null) {
 }
 
 export function MoneyPage() {
+  const queryClient = useQueryClient()
   const [bucket, setBucket] = useState<InvoiceBucket>("issued")
-  const [rows, setRows] = useState<InvoiceRow[]>([])
-  const [connected, setConnected] = useState(true)
+  const invoices = useInvoices(bucket)
+  const yookassa = useYookassa()
+  const rows = invoices.data ?? []
+  const connected = yookassa.data?.connected !== false
   const [error, setError] = useState("")
   const [toHide, setToHide] = useState<InvoiceRow | null>(null)
   const [busy, setBusy] = useState(false)
-
-  async function reload(next = bucket) {
-    try {
-      setRows(await loadInvoices(next))
-      setError("")
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Список счетов не открылся")
-    }
-  }
-
-  useEffect(() => {
-    void loadYookassa().then((status) => setConnected(status.connected)).catch(() => setConnected(false))
-  }, [])
-
-  useEffect(() => {
-    void reload(bucket)
-  }, [bucket])
 
   async function confirmHide() {
     if (!toHide) return
@@ -51,7 +40,7 @@ export function MoneyPage() {
     try {
       await hideInvoice(toHide.id)
       setToHide(null)
-      await reload()
+      await queryClient.invalidateQueries({ queryKey: keys.invoicesRoot })
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : "Не удалось убрать счёт")
     } finally {
@@ -86,6 +75,7 @@ export function MoneyPage() {
         ))}
       </div>
       {error ? <p className="fail money-pad">{error}</p> : null}
+      {invoices.isError ? <p className="fail money-pad">Список счетов не открылся</p> : null}
       {rows.map((row) => (
         <article key={row.id} className="money-row">
           <div className="money-row-top">

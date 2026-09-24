@@ -1,17 +1,23 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
 import { Link, useNavigate, useParams } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
 import { Button } from "../../shared/ui/button/Button"
 import { Area, Field } from "../../shared/ui/field/Field"
 import { CopyButton } from "../../shared/ui/copy/CopyButton"
-import { blockAccount, changeClientPassword, createAccount, deleteAccount, loadAccounts, revokeSessions, unblockAccount, updateAccount } from "./api"
+import { blockAccount, changeClientPassword, createAccount, deleteAccount, revokeSessions, unblockAccount, updateAccount } from "./api"
+import { dropAccount } from "./filter"
+import { useAccount } from "./useAccounts"
 import "./accounts.css"
 
 export function AccountForm() {
   const { accountId } = useParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { account } = useAccount(accountId)
   const editing = Boolean(accountId)
+  const filled = useRef<string | null>(null)
   const [displayName, setDisplayName] = useState("")
   const [login, setLogin] = useState("")
   const [password, setPassword] = useState("")
@@ -24,18 +30,15 @@ export function AccountForm() {
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
-    if (!accountId) return
-    void loadAccounts("").then((items) => {
-      const current = items.find((item) => item.id === accountId)
-      if (!current) return
-      setDisplayName(current.display_name)
-      setLogin(current.login)
-      setPhone(current.phone ?? "")
-      setInn(current.inn ?? "")
-      setEdoId(current.edo_id ?? "")
-      setNote(current.note ?? "")
-    })
-  }, [accountId])
+    if (!account || filled.current === account.id) return
+    filled.current = account.id
+    setDisplayName(account.display_name)
+    setLogin(account.login)
+    setPhone(account.phone ?? "")
+    setInn(account.inn ?? "")
+    setEdoId(account.edo_id ?? "")
+    setNote(account.note ?? "")
+  }, [account])
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -106,7 +109,11 @@ export function AccountForm() {
               <input type="checkbox" checked={confirmDelete} onChange={(event) => setConfirmDelete(event.target.checked)} />
               Удалить переписку и файлы
             </label>
-            <Button type="button" disabled={!confirmDelete} onClick={() => void act(async () => { await deleteAccount(accountId as string); navigate("/admin/clients") }, "Удалено")}>Удалить кабинет</Button>
+            <Button type="button" disabled={!confirmDelete} onClick={() => void act(async () => {
+              await deleteAccount(accountId as string)
+              dropAccount(queryClient, accountId as string)
+              navigate("/admin/clients")
+            }, "Удалено")}>Удалить кабинет</Button>
           </>
         ) : null}
       </div>

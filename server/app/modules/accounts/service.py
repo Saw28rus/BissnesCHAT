@@ -130,6 +130,27 @@ async def list_clients(session: AsyncSession, query: str) -> list[dict]:
     return result
 
 
+async def get_client_card(session: AsyncSession, account_id: uuid.UUID) -> dict:
+    client = await _client_or_404(session, account_id)
+    conversation = await session.scalar(select(Conversation).where(Conversation.client_id == client.id))
+    preview_row = None
+    if conversation is not None:
+        preview_row = await session.scalar(
+            select(Message)
+            .where(Message.conversation_id == conversation.id)
+            .order_by(Message.created_at.desc(), Message.id.desc())
+            .limit(1)
+        )
+    last_seen = await session.scalar(select(func.max(AuthSession.last_seen_at)).where(AuthSession.user_id == client.id))
+    return _card(
+        client,
+        str(conversation.id) if conversation else None,
+        _iso(last_seen),
+        _preview(preview_row),
+        _iso(preview_row.created_at) if preview_row else None,
+    )
+
+
 async def create_client(session: AsyncSession, actor: User, payload: AccountCreate) -> dict:
     login = payload.login.strip()
     if await _login_taken(session, login):

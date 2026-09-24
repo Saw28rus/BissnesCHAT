@@ -3,7 +3,7 @@ import type { FormEvent } from "react"
 import { Link } from "react-router-dom"
 import { Button } from "../../shared/ui/button/Button"
 import { Field, Select } from "../../shared/ui/field/Field"
-import { loadTemplates, type InvoiceTemplate } from "../money/api"
+import { useTemplates } from "../money/useMoney"
 import { expiresPreview, fillLetter, formatRub, periodCaption, previousMonthValue } from "../money/letter"
 
 type Props = {
@@ -19,15 +19,13 @@ export function InvoiceForm({ connected, busy, error, clientName, onCancel, onSe
   const [amount, setAmount] = useState("1800")
   const [period, setPeriod] = useState(previousMonthValue())
   const [days, setDays] = useState("7")
-  const [templates, setTemplates] = useState<InvoiceTemplate[]>([])
+  const templatesQuery = useTemplates()
+  const templates = templatesQuery.data ?? []
   const [templateId, setTemplateId] = useState("")
 
   useEffect(() => {
-    void loadTemplates().then((rows) => {
-      setTemplates(rows)
-      if (rows[0]) setTemplateId(rows[0].id)
-    }).catch(() => undefined)
-  }, [])
+    if (!templateId && templates[0]) setTemplateId(templates[0].id)
+  }, [templates, templateId])
 
   const template = templates.find((item) => item.id === templateId)
   const preview = useMemo(() => {

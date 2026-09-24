@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { FormEvent } from "react"
-import { loadAccounts, type AccountCard } from "../accounts/api"
+import { useAccounts } from "../accounts/useAccounts"
 import { ApiError } from "../../shared/api/client"
 import { Button } from "../../shared/ui/button/Button"
 import { Area } from "../../shared/ui/field/Field"
@@ -8,18 +8,13 @@ import { sendBroadcast } from "./api"
 import "./broadcast.css"
 
 export function BroadcastPage() {
-  const [items, setItems] = useState<AccountCard[]>([])
+  const { data, isError } = useAccounts()
+  const items = (data ?? []).filter((item) => item.status === "active")
   const [picked, setPicked] = useState<string[]>([])
   const [body, setBody] = useState("")
   const [error, setError] = useState("")
   const [report, setReport] = useState("")
   const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    void loadAccounts("").then((rows) => {
-      setItems(rows.filter((item) => item.status === "active"))
-    }).catch(() => setError("Список кабинетов не открылся"))
-  }, [])
 
   const allIds = items.map((item) => item.id)
   const allOn = allIds.length > 0 && allIds.every((id) => picked.includes(id))
@@ -76,6 +71,7 @@ export function BroadcastPage() {
         </ul>
         {items.length === 0 ? <p className="hint">Активных кабинетов нет.</p> : null}
         <Area label="Сообщение" value={body} onChange={(event) => setBody(event.target.value)} required maxLength={4000} />
+        {isError ? <p className="fail">Список кабинетов не открылся</p> : null}
         {error ? <p className="fail">{error}</p> : null}
         {report ? <p className="hint">{report}</p> : null}
         <Button type="submit" tone="solid" disabled={busy || picked.length === 0 || !body.trim()}>

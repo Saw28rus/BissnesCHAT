@@ -1,34 +1,16 @@
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { Link } from "react-router-dom"
 import { useSession } from "../../app/session"
-import { editText, loadMessages, removeMessage, sendFile, sendInvoice, sendText, syncMessages } from "./api"
+import { editText, removeMessage, sendFile, sendInvoice, sendText } from "./api"
 import { Composer } from "./Composer"
 import { InvoiceForm } from "./InvoiceForm"
 import { MessageList } from "./MessageList"
 import type { ChatMessage } from "./useSocket"
+import { useThread } from "./useThread"
 import { Confirm } from "../../shared/ui/confirm/Confirm"
 import { CopyButton } from "../../shared/ui/copy/CopyButton"
-import { loadYookassa } from "../yookassa/api"
+import { useYookassa } from "../yookassa/useYookassa"
 import "./chat.css"
-
-function sortMessages(items: ChatMessage[]) {
-  return items.slice().sort((left, right) => left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id))
-}
-
-function merge(items: ChatMessage[], incoming: ChatMessage) {
-  const index = items.findIndex(
-    (item) => item.id === incoming.id || Boolean(incoming.client_nonce && item.client_nonce === incoming.client_nonce),
-  )
-  const next = items.slice()
-  if (index === -1) next.push({ ...incoming, pending: false, failed: false })
-  else next[index] = { ...incoming, pending: false, failed: false, client_nonce: incoming.client_nonce ?? next[index].client_nonce }
-  const seen = new Set<string>()
-  return sortMessages(next.filter((item) => {
-    if (seen.has(item.id)) return false
-    seen.add(item.id)
-    return true
-  }))
-}
 
 type Props = {
   conversationId: string
@@ -38,9 +20,9 @@ type Props = {
 }
 
 export function ChatPage({ conversationId, title, backTo, client }: Props) {
-  const { profile, link, subscribe } = useSession()
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [older, setOlder] = useState<string | null>(null)
+  const { profile, link } = useSession()
+  const thread = useThread(conversationId)
+  const yookassa = useYookassa(profile?.role === "admin")
   const [reply, setReply] = useState<ChatMessage | null>(null)
   const [editing, setEditing] = useState<ChatMessage | null>(null)
   const [toDelete, setToDelete] = useState<ChatMessage | null>(null)
@@ -48,70 +30,13 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
   const [invoiceOpen, setInvoiceOpen] = useState(false)
   const [invoiceBusy, setInvoiceBusy] = useState(false)
   const [invoiceError, setInvoiceError] = useState("")
-  const [ykOn, setYkOn] = useState(false)
   const [error, setError] = useState("")
-  const messagesRef = useRef(messages)
-  messagesRef.current = messages
-
-  useEffect(() => {
-    if (profile?.role !== "admin") return
-    void loadYookassa().then((status) => setYkOn(status.connected)).catch(() => setYkOn(false))
-  }, [profile?.role])
-
-  useEffect(() => {
-    let ignore = false
-    setMessages([])
-    void loadMessages(conversationId).then((page) => {
-      if (ignore) return
-      setMessages(sortMessages(page.messages))
-      setOlder(page.next_cursor)
-    }).catch(() => setError("Не удалось открыть переписку"))
-    return () => {
-      ignore = true
-    }
-  }, [conversationId])
-
-  useEffect(() => {
-    return subscribe((event) => {
-      if (event.type === "socket.open") {
-        const since = messagesRef.current.reduce((max, item) => (item.updated_at > max ? item.updated_at : max), "")
-        if (!since) return
-        void syncMessages(conversationId, since).then((page) => {
-          setMessages((current) => page.messages.reduce(merge, current))
-        })
-        return
-      }
-      if (!event.message || event.message.conversation_id !== conversationId) return
-      if (event.type === "message.created" || event.type === "message.updated" || event.type === "message.deleted") {
-        setMessages((current) => merge(current, event.message as ChatMessage))
-        const message = event.message
-        if (
-          event.type === "message.created" &&
-          profile?.notifications_enabled &&
-          document.hidden &&
-          message.sender_id !== profile.id &&
-          Notification.permission === "granted"
-        ) {
-          const kind = message.type === "file" ? "файл" : message.type === "voice" ? "голосовое" : message.type === "invoice" ? "счёт" : "сообщение"
-          new Notification("Бизнес ЧАТ", { body: `${title}: ${kind}` })
-        }
-      }
-    })
-  }, [conversationId, profile, subscribe, title])
-
-  async function onOlder() {
-    if (!older) return
-    const page = await loadMessages(conversationId, older)
-    setMessages((current) => sortMessages([...page.messages, ...current]))
-    setOlder(page.next_cursor)
-  }
 
   async function onSendInvoice(payload: { amount: string; period: string; template_id?: string; days: number }) {
     setInvoiceBusy(true)
     setInvoiceError("")
     try {
-      const saved = await sendInvoice(conversationId, payload, crypto.randomUUID())
-      setMessages((current) => merge(current, saved))
+      thread.put(await sendInvoice(conversationId, payload, crypto.randomUUID()))
       setInvoiceOpen(false)
     } catch (reason) {
       setInvoiceError(reason instanceof Error ? reason.message : "Счёт не выставлен")
@@ -122,6 +47,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
 
   async function onSendText(body: string) {
     const clientNonce = crypto.randomUUID()
+    const replyId = reply?.id
     const optimistic: ChatMessage = {
       id: clientNonce,
       conversation_id: conversationId,
@@ -139,34 +65,30 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
       pending: true,
       client_nonce: clientNonce,
     }
-    setMessages((current) => [...current, optimistic])
+    thread.put(optimistic)
     setReply(null)
     try {
-      const saved = await sendText(conversationId, body, clientNonce, reply?.id)
-      setMessages((current) => merge(current, { ...saved, client_nonce: clientNonce }))
+      thread.put({ ...(await sendText(conversationId, body, clientNonce, replyId)), client_nonce: clientNonce })
     } catch (reason) {
-      setMessages((current) => current.map((item) => item.client_nonce === clientNonce ? { ...item, pending: false, failed: true } : item))
+      thread.failNonce(clientNonce)
       throw reason
     }
   }
 
   async function onSendFile(file: File) {
-    const saved = await sendFile(conversationId, "file", file, crypto.randomUUID(), reply?.id)
+    thread.put(await sendFile(conversationId, "file", file, crypto.randomUUID(), reply?.id))
     setReply(null)
-    setMessages((current) => merge(current, saved))
   }
 
   async function onSendVoice(file: File, durationSec: number) {
-    const saved = await sendFile(conversationId, "voice", file, crypto.randomUUID(), reply?.id, durationSec)
+    thread.put(await sendFile(conversationId, "voice", file, crypto.randomUUID(), reply?.id, durationSec))
     setReply(null)
-    setMessages((current) => merge(current, saved))
   }
 
   async function onEdit(body: string) {
     if (!editing) return
-    const saved = await editText(editing.id, body)
+    thread.put(await editText(editing.id, body))
     setEditing(null)
-    setMessages((current) => merge(current, saved))
   }
 
   async function confirmDelete() {
@@ -174,8 +96,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
     setDeleting(true)
     setError("")
     try {
-      const saved = await removeMessage(toDelete.id)
-      setMessages((current) => merge(current, saved))
+      thread.put(await removeMessage(toDelete.id))
       setToDelete(null)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Не удалось удалить")
@@ -217,19 +138,21 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
         )}
       </header>
       {error ? <p className="fail composer-error">{error}</p> : null}
+      {thread.error ? <p className="fail composer-error">Не удалось открыть переписку</p> : null}
       <MessageList
-        messages={messages}
+        messages={thread.messages}
+        loading={thread.loading}
         selfId={profile?.id ?? ""}
         selfRole={profile?.role === "admin" ? "admin" : "client"}
-        older={older}
-        onOlder={() => void onOlder()}
+        older={thread.older}
+        onOlder={() => void thread.loadOlder()}
         onReply={(message) => { setEditing(null); setReply(message) }}
         onEdit={(message) => { setReply(null); setEditing(message) }}
         onDelete={(message) => setToDelete(message)}
       />
       {invoiceOpen && profile?.role === "admin" ? (
         <InvoiceForm
-          connected={ykOn}
+          connected={Boolean(yookassa.data?.connected)}
           busy={invoiceBusy}
           error={invoiceError}
           clientName={title}

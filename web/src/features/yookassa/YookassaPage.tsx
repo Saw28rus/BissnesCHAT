@@ -1,30 +1,30 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import type { FormEvent } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
+import { keys } from "../../shared/query/keys"
 import { Button } from "../../shared/ui/button/Button"
 import { Field } from "../../shared/ui/field/Field"
-import { connectYookassa, disconnectYookassa, loadYookassa, type YookassaStatus } from "./api"
+import { connectYookassa, disconnectYookassa } from "./api"
+import { useYookassa } from "./useYookassa"
 import "./yookassa.css"
 
 export function YookassaPage() {
-  const [status, setStatus] = useState<YookassaStatus | null>(null)
+  const queryClient = useQueryClient()
+  const query = useYookassa()
+  const status = query.data
   const [shopId, setShopId] = useState("")
   const [secret, setSecret] = useState("")
   const [replace, setReplace] = useState(false)
   const [error, setError] = useState("")
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    void loadYookassa().then(setStatus).catch(() => setError("Не удалось открыть ЮKassa"))
-  }, [])
-
   async function connect(event: FormEvent) {
     event.preventDefault()
     setBusy(true)
     setError("")
     try {
-      const next = await connectYookassa(shopId.trim(), secret)
-      setStatus(next)
+      queryClient.setQueryData(keys.yookassa, await connectYookassa(shopId.trim(), secret))
       setSecret("")
       setReplace(false)
     } catch (reason) {
@@ -38,7 +38,7 @@ export function YookassaPage() {
     setBusy(true)
     setError("")
     try {
-      setStatus(await disconnectYookassa())
+      queryClient.setQueryData(keys.yookassa, await disconnectYookassa())
       setShopId("")
       setSecret("")
     } catch (reason) {
@@ -58,6 +58,7 @@ export function YookassaPage() {
         Номер магазина и секретный ключ берутся в личном кабинете ЮKassa, раздел «Интеграция».
         После подключения ключ больше не показывается.
       </p>
+      {query.isError ? <p className="fail">Не удалось открыть ЮKassa</p> : null}
       {connected ? (
         <p className="ok">
           ЮKassa подключена
