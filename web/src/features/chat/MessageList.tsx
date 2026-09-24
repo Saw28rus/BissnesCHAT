@@ -24,6 +24,7 @@ type Props = {
   selfRole: "admin" | "client"
   older: string | null
   dockSpace?: number
+  followSent?: number
   onOlder: () => void
   onReply: (message: ChatMessage) => void
   onEdit: (message: ChatMessage) => void
@@ -37,6 +38,7 @@ export function MessageList({
   selfRole,
   older,
   dockSpace = 80,
+  followSent = 0,
   onOlder,
   onReply,
   onEdit,
@@ -46,10 +48,11 @@ export function MessageList({
   const stick = useRef(true)
 
   useLayoutEffect(() => {
+    if (followSent) stick.current = true
     const node = box.current
     if (!node || !stick.current) return
     node.scrollTop = node.scrollHeight
-  }, [messages, dockSpace])
+  }, [messages, dockSpace, followSent])
 
   function onScroll() {
     const node = box.current

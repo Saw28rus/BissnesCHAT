@@ -34,6 +34,11 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
   const [error, setError] = useState("")
   const dock = useRef<HTMLDivElement>(null)
   const [dockSpace, setDockSpace] = useState(80)
+  const [followSent, setFollowSent] = useState(0)
+
+  function followOwn() {
+    setFollowSent((value) => value + 1)
+  }
 
   useLayoutEffect(() => {
     const node = dock.current
@@ -50,6 +55,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
     setInvoiceError("")
     try {
       thread.put(await sendInvoice(conversationId, payload, crypto.randomUUID()))
+      followOwn()
       setInvoiceOpen(false)
     } catch (reason) {
       setInvoiceError(reason instanceof Error ? reason.message : "Счёт не выставлен")
@@ -79,6 +85,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
       client_nonce: clientNonce,
     }
     thread.put(optimistic)
+    followOwn()
     setReply(null)
     try {
       thread.put({ ...(await sendText(conversationId, body, clientNonce, replyId)), client_nonce: clientNonce })
@@ -90,11 +97,13 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
 
   async function onSendFile(file: File) {
     thread.put(await sendFile(conversationId, "file", file, crypto.randomUUID(), reply?.id))
+    followOwn()
     setReply(null)
   }
 
   async function onSendVoice(file: File, durationSec: number) {
     thread.put(await sendFile(conversationId, "voice", file, crypto.randomUUID(), reply?.id, durationSec))
+    followOwn()
     setReply(null)
   }
 
@@ -159,6 +168,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
         selfRole={profile?.role === "admin" ? "admin" : "client"}
         older={thread.older}
         dockSpace={dockSpace}
+        followSent={followSent}
         onOlder={() => void thread.loadOlder()}
         onReply={(message) => { setEditing(null); setReply(message) }}
         onEdit={(message) => { setReply(null); setEditing(message) }}
