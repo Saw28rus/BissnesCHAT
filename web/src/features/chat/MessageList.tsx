@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react"
 import { Button } from "../../shared/ui/button/Button"
 import { isPhotoType } from "./photo"
+import { VoiceNote } from "./VoiceNote"
 import type { ChatMessage } from "./useSocket"
 
 function stamp(value: string) {
@@ -90,10 +91,11 @@ export function MessageList({
         const photo = Boolean(
           !deleted && message.type === "file" && message.attachment && isPhotoType(message.attachment.content_type),
         )
+        const voice = Boolean(!deleted && message.type === "voice" && message.attachment)
         return (
           <article key={message.client_nonce ?? message.id} className="post">
             {showDay ? <div className="day">{day}</div> : null}
-            <div className={`bubble ${fromClient ? "from-client" : "from-admin"}${photo ? " has-photo" : ""}`}>
+            <div className={`bubble ${fromClient ? "from-client" : "from-admin"}${photo ? " has-photo" : ""}${voice ? " has-voice" : ""}`}>
               <div className="bubble-body">
                 {message.reply_quote ? <div className="quote">{message.reply_quote}</div> : null}
                 {deleted ? <p className="deleted">Сообщение удалено</p> : null}
@@ -130,7 +132,11 @@ export function MessageList({
                   )
                 ) : null}
                 {!deleted && message.type === "voice" && message.attachment ? (
-                  <audio controls preload="none" src={`/api/attachments/${message.attachment.id}`} />
+                  <VoiceNote
+                    id={message.attachment.id}
+                    src={`/api/attachments/${message.attachment.id}`}
+                    duration={message.attachment.duration_sec}
+                  />
                 ) : null}
                 <div className="meta">
                   {stamp(message.created_at)}

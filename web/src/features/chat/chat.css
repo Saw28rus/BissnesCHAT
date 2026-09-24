@@ -145,6 +145,22 @@
 }
 .bubble.has-photo .quote { margin: 0 2px 4px; }
 .bubble.has-photo .meta { margin-top: 4px; padding: 0 2px; }
+.bubble.has-voice {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: fit-content;
+  max-width: min(220px, 100%);
+  padding: 4px 4px 4px 6px;
+}
+.bubble.from-client.has-voice { padding: 4px 4px 4px 8px; }
+.bubble.has-voice .bubble-body { flex: none; padding: 0 4px 0 0; }
+.bubble.has-voice .bubble-tools {
+  order: -1;
+  align-self: flex-end;
+}
+.bubble.has-voice .quote { margin: 0 2px 4px; }
+.bubble.has-voice .meta { margin-top: 2px; padding: 0 2px; }
 .quote {
   border-left: 2px solid var(--accent);
   padding-left: 6px;
@@ -421,7 +437,63 @@
   color: color-mix(in srgb, var(--out-ink) 70%, transparent);
 }
 .bubble.from-client .invoice-paid { color: var(--ok); }
-audio { width: min(280px, 70vw); }
+.voice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 148px;
+  padding: 2px 0 4px;
+}
+.voice-play {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 18px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  display: grid;
+  place-items: center;
+}
+.bubble.from-client .voice-play {
+  border-color: color-mix(in srgb, var(--out-ink) 28%, var(--out));
+  background: color-mix(in srgb, var(--out-ink) 14%, var(--out));
+  color: var(--out-ink);
+}
+.voice-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.voice-wave {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 20px;
+}
+.voice-wave button {
+  width: 2px;
+  flex: 1 1 0;
+  min-width: 2px;
+  max-width: 3px;
+  padding: 0;
+  border: 0;
+  border-radius: 1px;
+  background: color-mix(in srgb, currentColor 28%, transparent);
+  align-self: center;
+}
+.voice-wave button.on { background: var(--accent); }
+.bubble.from-client .voice-wave button.on { background: var(--out-ink); }
+.voice-time {
+  font-size: 11px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.bubble.from-client .voice-time { color: color-mix(in srgb, var(--out-ink) 70%, transparent); }
 .back-link { display: none; }
 @media (max-width: 800px) {
   .back-link { display: inline-flex; align-items: center; min-height: 44px; }
@@ -431,4 +503,6 @@ audio { width: min(280px, 70vw); }
 @media (pointer: coarse) {
   .btn.quiet { min-height: 44px; }
   .bubble.has-photo .bubble-tool { width: 40px; height: 40px; }
+  .bubble.has-voice .bubble-tool { width: 40px; height: 40px; }
+  .voice-play { width: 40px; height: 40px; }
 }
