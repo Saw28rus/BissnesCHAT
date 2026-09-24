@@ -156,6 +156,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
             ref={fileRef}
             hidden
             type="file"
+            accept="image/jpeg,image/png,image/webp,.pdf,.doc,.docx,.xls,.xlsx,.txt"
             onChange={(event) => {
               void onFile(event.target.files?.[0])
               event.currentTarget.value = ""

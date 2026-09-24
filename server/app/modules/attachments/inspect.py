@@ -37,11 +37,11 @@ def sniff(data: bytes, filename: str, kind: str) -> tuple[str, str]:
 def _document(data: bytes, ext: str) -> tuple[str, str] | None:
     if data.startswith(b"%PDF") and ext == ".pdf":
         return "application/pdf", ".pdf"
-    if data.startswith(b"\xff\xd8\xff") and ext in {".jpg", ".jpeg"}:
+    if data.startswith(b"\xff\xd8\xff"):
         return "image/jpeg", ".jpg"
-    if data.startswith(b"\x89PNG\r\n\x1a\n") and ext == ".png":
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
         return "image/png", ".png"
-    if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP" and ext == ".webp":
+    if len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP":
         return "image/webp", ".webp"
     if data.startswith(b"\xd0\xcf\x11\xe0") and ext == ".doc":
         return "application/msword", ".doc"

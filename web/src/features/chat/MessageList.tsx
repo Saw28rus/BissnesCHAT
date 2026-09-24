@@ -10,6 +10,10 @@ function dayLabel(value: string) {
   return new Intl.DateTimeFormat("ru", { day: "numeric", month: "long" }).format(new Date(value))
 }
 
+function isPhoto(type: string) {
+  return type === "image/jpeg" || type === "image/png" || type === "image/webp"
+}
+
 function money(amount: string, currency: string) {
   const value = Number(amount)
   if (Number.isNaN(value)) return `${amount} ${currency}`
@@ -93,7 +97,17 @@ export function MessageList({
                   </>
                 ) : null}
                 {!deleted && message.type === "file" && message.attachment ? (
-                  <a className="file-link" href={`/api/attachments/${message.attachment.id}`}>{message.attachment.name}</a>
+                  isPhoto(message.attachment.content_type) ? (
+                    <a className="photo-link" href={`/api/attachments/${message.attachment.id}`} target="_blank" rel="noopener noreferrer">
+                      <img
+                        className="photo"
+                        src={`/api/attachments/${message.attachment.id}`}
+                        alt={message.attachment.name}
+                      />
+                    </a>
+                  ) : (
+                    <a className="file-link" href={`/api/attachments/${message.attachment.id}`}>{message.attachment.name}</a>
+                  )
                 ) : null}
                 {!deleted && message.type === "voice" && message.attachment ? (
                   <audio controls preload="none" src={`/api/attachments/${message.attachment.id}`} />
