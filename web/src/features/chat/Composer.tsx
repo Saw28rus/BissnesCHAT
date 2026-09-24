@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react"
-import type { FormEvent } from "react"
+import type { FormEvent, PointerEvent } from "react"
 import type { ChatMessage } from "./useSocket"
 import { prepareUpload } from "./photo"
 
@@ -38,6 +38,8 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
   const chunks = useRef<Blob[]>([])
   const started = useRef(0)
   const cancel = useRef(false)
+  const sending = useRef(false)
+  const [busy, setBusy] = useState(false)
   const canSend = Boolean(text.trim()) && !recording
 
   useEffect(() => {
@@ -59,17 +61,39 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     return () => window.clearInterval(tick)
   }, [recording])
 
+  function focusField() {
+    areaRef.current?.focus()
+  }
+
+  function keepKeyboard(event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0) return
+    event.preventDefault()
+    focusField()
+    event.currentTarget.form?.requestSubmit()
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault()
     const body = text.trim()
-    if (!body || recording) return
+    if (!body || recording || sending.current) return
+    sending.current = true
+    setBusy(true)
     setError("")
+    setText("")
+    focusField()
     try {
       if (editing) await onEdit(body)
       else await onSendText(body)
-      setText("")
     } catch (reason) {
+      setText(body)
       setError(reason instanceof Error ? reason.message : "Не отправилось")
+    } finally {
+      sending.current = false
+      setBusy(false)
+      const active = document.activeElement
+      if (active === areaRef.current || (active instanceof HTMLElement && active.closest(".composer-shell"))) {
+        focusField()
+      }
     }
   }
 
@@ -198,6 +222,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
               value={text}
               placeholder="Сообщение"
               rows={1}
+              enterKeyHint="send"
               onChange={(event) => setText(event.target.value)}
               onKeyDown={(event) => {
                 const phone = window.matchMedia("(pointer: coarse)").matches
@@ -209,11 +234,11 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
             />
           )}
           {editing ? (
-            <button className="field-btn send send-ok" type="submit" aria-label="Сохранить" disabled={!text.trim()}>
+            <button className="field-btn send send-ok" type="submit" aria-label="Сохранить" tabIndex={-1} disabled={!text.trim()} onPointerDown={keepKeyboard}>
               ОК
             </button>
-          ) : canSend ? (
-            <button className="field-btn send" type="submit" aria-label="Отправить">
+          ) : canSend || busy ? (
+            <button className="field-btn send" type="submit" aria-label="Отправить" tabIndex={-1} disabled={busy && !canSend} onPointerDown={keepKeyboard}>
               <svg className="send-plane" width="28" height="28" viewBox="0 0 22 22" aria-hidden="true">
                 <path d="M3 11.1 19 4.2 13.1 18.4 11.4 12.3z" fill="currentColor" />
               </svg>
