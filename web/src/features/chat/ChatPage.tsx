@@ -162,6 +162,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
       {error ? <p className="fail composer-error">{error}</p> : null}
       {thread.error ? <p className="fail composer-error">Не удалось открыть переписку</p> : null}
       <MessageList
+        key={conversationId}
         messages={thread.messages}
         loading={thread.loading}
         selfId={profile?.id ?? ""}

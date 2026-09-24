@@ -45,14 +45,26 @@ export function MessageList({
   onDelete,
 }: Props) {
   const box = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
 
   useLayoutEffect(() => {
-    if (followSent) stick.current = true
     const node = box.current
-    if (!node || !stick.current) return
-    node.scrollTop = node.scrollHeight
-  }, [messages, dockSpace, followSent])
+    const content = inner.current
+    if (!node || !content) return
+    const pin = () => {
+      if (stick.current) node.scrollTop = node.scrollHeight
+    }
+    if (followSent) stick.current = true
+    pin()
+    const observer = new ResizeObserver(pin)
+    observer.observe(content)
+    node.addEventListener("load", pin, true)
+    return () => {
+      observer.disconnect()
+      node.removeEventListener("load", pin, true)
+    }
+  }, [messages, dockSpace, followSent, loading])
 
   function onScroll() {
     const node = box.current
@@ -63,6 +75,7 @@ export function MessageList({
   let previousDay = ""
   return (
     <div className="thread" ref={box} onScroll={onScroll}>
+      <div className="thread-inner" ref={inner}>
       <div className="thread-fill" aria-hidden="true" />
       {older ? <Button type="button" tone="quiet" onClick={onOlder}>Более ранние</Button> : null}
       {loading ? <p className="hint">Открываем переписку</p> : null}
@@ -153,6 +166,7 @@ export function MessageList({
           </article>
         )
       })}
+      </div>
     </div>
   )
 }

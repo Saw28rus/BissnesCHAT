@@ -38,8 +38,13 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
   const chunks = useRef<Blob[]>([])
   const started = useRef(0)
   const cancel = useRef(false)
+  const holding = useRef(false)
+  const startX = useRef(0)
+  const willCancelRef = useRef(false)
+  const lockTimer = useRef(0)
   const sending = useRef(false)
   const [busy, setBusy] = useState(false)
+  const [willCancel, setWillCancel] = useState(false)
   const canSend = Boolean(text.trim()) && !recording
 
   useEffect(() => {
@@ -60,6 +65,13 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     }, 200)
     return () => window.clearInterval(tick)
   }, [recording])
+
+  useEffect(() => () => {
+    cancel.current = true
+    holding.current = false
+    window.clearTimeout(lockTimer.current)
+    recorder.current?.stop()
+  }, [])
 
   function focusField() {
     areaRef.current?.focus()
@@ -107,28 +119,56 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     }
   }
 
-  async function toggleRecord() {
-    if (recording && recorder.current) {
-      cancel.current = false
-      recorder.current.stop()
-      return
-    }
+  function armCancel(next: boolean) {
+    if (willCancelRef.current === next) return
+    willCancelRef.current = next
+    setWillCancel(next)
+  }
+
+  function finishHold(discard: boolean) {
+    holding.current = false
+    willCancelRef.current = false
+    setWillCancel(false)
+    const media = recorder.current
+    if (!media || media.state === "inactive") return
+    cancel.current = discard
+    media.stop()
+  }
+
+  async function onRecDown(event: PointerEvent<HTMLButtonElement>) {
+    if (event.button !== 0 || recording || holding.current || canSend || busy || editing) return
+    event.preventDefault()
+    holding.current = true
+    startX.current = event.clientX
+    willCancelRef.current = false
+    setWillCancel(false)
     setError("")
+    event.currentTarget.setPointerCapture(event.pointerId)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (!holding.current) {
+        stream.getTracks().forEach((track) => track.stop())
+        return
+      }
       const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/mp4"
       const media = new MediaRecorder(stream, { mimeType: mime })
       chunks.current = []
       cancel.current = false
       started.current = Date.now()
-      media.ondataavailable = (event) => {
-        if (event.data.size) chunks.current.push(event.data)
+      media.ondataavailable = (chunk) => {
+        if (chunk.data.size) chunks.current.push(chunk.data)
       }
       media.onstop = () => {
         stream.getTracks().forEach((track) => track.stop())
+        recorder.current = null
         setRecording(false)
+        window.clearTimeout(lockTimer.current)
         const duration = Math.round((Date.now() - started.current) / 1000)
-        if (cancel.current || duration < 1) return
+        if (cancel.current) return
+        if (duration < 1) {
+          setError("Удерживайте, чтобы записать")
+          return
+        }
         const type = media.mimeType.includes("mp4") ? "audio/mp4" : "audio/webm"
         const name = type === "audio/mp4" ? "voice.mp4" : "voice.webm"
         const file = new File(chunks.current, name, { type })
@@ -139,17 +179,33 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
       media.start()
       recorder.current = media
       setRecording(true)
-      window.setTimeout(() => {
-        if (recorder.current && recorder.current.state === "recording") recorder.current.stop()
+      window.clearTimeout(lockTimer.current)
+      lockTimer.current = window.setTimeout(() => {
+        if (recorder.current && recorder.current.state === "recording") {
+          cancel.current = false
+          recorder.current.stop()
+        }
       }, 180000)
     } catch {
+      holding.current = false
       setError("Нет доступа к микрофону")
     }
   }
 
-  function stopWithoutSend() {
-    cancel.current = true
-    recorder.current?.stop()
+  function onRecMove(event: PointerEvent<HTMLButtonElement>) {
+    if (!holding.current) return
+    armCancel(startX.current - event.clientX > 80)
+  }
+
+  function onRecUp(event: PointerEvent<HTMLButtonElement>) {
+    if (!holding.current && !recording) return
+    const discard = willCancelRef.current
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    } catch {
+      /* already released */
+    }
+    finishHold(discard)
   }
 
   const quote = reply ? (reply.reply_quote || reply.body || "сообщение") : editing ? (editing.body || "сообщение") : ""
@@ -176,7 +232,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
             </button>
           </div>
         ) : null}
-        <div className={`composer-row ${recording ? "rec" : ""}`}>
+        <div className={`composer-row ${recording ? "rec" : ""} ${willCancel ? "rec-cancel" : ""}`}>
           <input
             ref={fileRef}
             hidden
@@ -188,11 +244,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
             }}
           />
           {recording ? (
-            <button className="field-btn" type="button" aria-label="Отмена записи" onClick={stopWithoutSend}>
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                <path d="M4.5 4.5l9 9M13.5 4.5l-9 9" fill="none" stroke="currentColor" strokeWidth="1.4" />
-              </svg>
-            </button>
+            <span className="rec-label">{willCancel ? "Отмена" : "Влево — отмена"}</span>
           ) : (
             <>
               <button className="field-btn" type="button" aria-label="Файл" onClick={() => fileRef.current?.click()}>
@@ -214,7 +266,6 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
             <>
               <span className="rec-mark" aria-hidden="true" />
               <span className="rec-time">{clock(elapsed)}</span>
-              <span className="rec-label">Запись</span>
             </>
           ) : (
             <textarea
@@ -243,14 +294,18 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
                 <path d="M3 11.1 19 4.2 13.1 18.4 11.4 12.3z" fill="currentColor" />
               </svg>
             </button>
-          ) : recording ? (
-            <button className="field-btn rec" type="button" aria-label="Остановить запись" onClick={() => void toggleRecord()}>
-              <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-                <rect x="6" y="6" width="6" height="6" fill="currentColor" />
-              </svg>
-            </button>
           ) : (
-            <button className="field-btn" type="button" aria-label="Голосовое" onClick={() => void toggleRecord()}>
+            <button
+              className={`field-btn mic ${recording ? "rec" : ""}`}
+              type="button"
+              aria-label={recording ? (willCancel ? "Отмена" : "Отпустите, чтобы отправить") : "Голосовое"}
+              onPointerDown={(event) => void onRecDown(event)}
+              onPointerMove={onRecMove}
+              onPointerUp={onRecUp}
+              onPointerCancel={onRecUp}
+              onLostPointerCapture={onRecUp}
+              onContextMenu={(event) => event.preventDefault()}
+            >
               <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M10 3.2a2.4 2.4 0 0 0-2.4 2.4v4.2a2.4 2.4 0 1 0 4.8 0V5.6A2.4 2.4 0 0 0 10 3.2z" fill="none" stroke="currentColor" strokeWidth="1.4" />
                 <path d="M5.2 9.4a4.8 4.8 0 0 0 9.6 0M10 14.2V17" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />

@@ -40,6 +40,7 @@ function AdminChat() {
   if (!conversationId) return null
   return (
     <ChatPage
+      key={conversationId}
       conversationId={conversationId}
       title={client?.display_name || "Клиент"}
       backTo="/admin/chats"
