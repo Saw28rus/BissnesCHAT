@@ -1,5 +1,4 @@
-import { useLayoutEffect, useRef } from "react"
-import { Button } from "../../shared/ui/button/Button"
+import { useEffect, useLayoutEffect, useRef } from "react"
 import { isPhotoType } from "./photo"
 import { VoiceNote } from "./VoiceNote"
 import type { ChatMessage } from "./useSocket"
@@ -26,7 +25,7 @@ type Props = {
   older: string | null
   dockSpace?: number
   followSent?: number
-  onOlder: () => void
+  onOlder: () => void | Promise<void>
   onReply: (message: ChatMessage) => void
   onEdit: (message: ChatMessage) => void
   onDelete: (message: ChatMessage) => void
@@ -47,16 +46,29 @@ export function MessageList({
 }: Props) {
   const box = useRef<HTMLDivElement>(null)
   const inner = useRef<HTMLDivElement>(null)
+  const top = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
+  const fromEnd = useRef(0)
+  const pulling = useRef(false)
+  const lastFollow = useRef(followSent)
+  const onOlderRef = useRef(onOlder)
+  onOlderRef.current = onOlder
 
   useLayoutEffect(() => {
     const node = box.current
     const content = inner.current
     if (!node || !content) return
     const pin = () => {
-      if (stick.current) node.scrollTop = node.scrollHeight
+      if (stick.current) {
+        node.scrollTop = node.scrollHeight
+        return
+      }
+      node.scrollTop = node.scrollHeight - fromEnd.current
     }
-    if (followSent) stick.current = true
+    if (followSent !== lastFollow.current) {
+      lastFollow.current = followSent
+      if (followSent) stick.current = true
+    }
     pin()
     const observer = new ResizeObserver(pin)
     observer.observe(content)
@@ -67,9 +79,33 @@ export function MessageList({
     }
   }, [messages, dockSpace, followSent, loading])
 
+  useEffect(() => {
+    const node = box.current
+    const target = top.current
+    if (!node || !target || loading || !older) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        if (pulling.current || node.scrollHeight <= node.clientHeight + 24) return
+        stick.current = false
+        fromEnd.current = node.scrollHeight - node.scrollTop
+        pulling.current = true
+        void Promise.resolve(onOlderRef.current()).finally(() => {
+          requestAnimationFrame(() => {
+            pulling.current = false
+          })
+        })
+      },
+      { root: node, rootMargin: "80px 0px 0px 0px" },
+    )
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [older, loading, messages.length])
+
   function onScroll() {
     const node = box.current
     if (!node) return
+    fromEnd.current = node.scrollHeight - node.scrollTop
     stick.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80
   }
 
@@ -78,7 +114,7 @@ export function MessageList({
     <div className="thread" ref={box} onScroll={onScroll}>
       <div className="thread-inner" ref={inner}>
       <div className="thread-fill" aria-hidden="true" />
-      {older ? <Button type="button" tone="quiet" onClick={onOlder}>Более ранние</Button> : null}
+      {older ? <div className="thread-older" ref={top} aria-hidden="true" /> : null}
       {loading ? <p className="hint">Открываем переписку</p> : null}
       {!loading && messages.length === 0 ? <p className="hint">Переписка ещё пустая.</p> : null}
       {messages.map((message) => {

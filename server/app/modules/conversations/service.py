@@ -1,7 +1,7 @@
 import base64
 import json
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -21,6 +21,9 @@ from app.modules.yookassa.models import Invoice
 from app.modules.yookassa.service import invoice_map, present_invoice, refresh_pending
 
 _PAGE = 50
+_OPEN_DAYS = 2
+_OPEN_MIN = 40
+_OPEN_CAP = 80
 
 
 def encode_cursor(message: Message) -> str:
@@ -63,6 +66,37 @@ def present_many(
     ]
 
 
+def _aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _opening_window(rows_newest_first: list[Message]) -> list[Message]:
+    if not rows_newest_first:
+        return []
+    cutoff = utcnow() - timedelta(days=_OPEN_DAYS)
+    recent = [row for row in rows_newest_first if _aware(row.created_at) >= cutoff]
+    if len(recent) >= _OPEN_MIN:
+        return recent[:_OPEN_CAP]
+    return rows_newest_first[: min(_OPEN_MIN, len(rows_newest_first))]
+
+
+async def _older_cursor(session: AsyncSession, conversation_id: uuid.UUID, oldest: Message | None) -> str | None:
+    if oldest is None:
+        return None
+    exists = await session.scalar(
+        select(Message.id)
+        .where(
+            Message.conversation_id == conversation_id,
+            or_(
+                Message.created_at < oldest.created_at,
+                and_(Message.created_at == oldest.created_at, Message.id < oldest.id),
+            ),
+        )
+        .limit(1)
+    )
+    return encode_cursor(oldest) if exists is not None else None
+
+
 async def list_messages(
     session: AsyncSession,
     user: User,
@@ -79,14 +113,23 @@ async def list_messages(
                 and_(Message.created_at == moment, Message.id < message_id),
             )
         )
-    rows = (
-        await session.scalars(stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(_PAGE))
-    ).all()
+        rows = list(
+            (
+                await session.scalars(stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(_PAGE))
+            ).all()
+        )
+    else:
+        rows = list(
+            (
+                await session.scalars(stmt.order_by(Message.created_at.desc(), Message.id.desc()).limit(_OPEN_CAP))
+            ).all()
+        )
+        rows = _opening_window(rows)
     ordered = list(reversed(rows))
     await refresh_pending(session, ordered)
     attachments = await attachment_map(session, ordered)
     invoices = await invoice_map(session, ordered)
-    next_cursor = encode_cursor(rows[-1]) if len(rows) == _PAGE else None
+    next_cursor = await _older_cursor(session, conversation_id, rows[-1] if rows else None)
     return {"messages": present_many(ordered, attachments, invoices), "next_cursor": next_cursor}
 
 

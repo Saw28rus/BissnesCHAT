@@ -8,8 +8,23 @@ export type Thread = {
   fromServer?: boolean
 }
 
+const OPEN_DAYS = 2
+const OPEN_MIN = 40
+const OPEN_CAP = 80
+
 export function sortMessages(items: ChatMessage[]) {
   return items.slice().sort((left, right) => left.created_at.localeCompare(right.created_at) || left.id.localeCompare(right.id))
+}
+
+export function openingSlice(messages: ChatMessage[]) {
+  const pending = messages.filter((item) => item.pending)
+  const saved = messages.filter((item) => !item.pending)
+  if (saved.length === 0) return messages
+  const cutoff = Date.now() - OPEN_DAYS * 24 * 60 * 60 * 1000
+  const recent = saved.filter((item) => Date.parse(item.created_at) >= cutoff)
+  const windowed = recent.length >= OPEN_MIN ? recent.slice(-OPEN_CAP) : saved.slice(-Math.min(OPEN_MIN, saved.length))
+  const kept = new Set(windowed.map((item) => item.id))
+  return sortMessages([...windowed, ...pending.filter((item) => !kept.has(item.id))])
 }
 
 export function merge(items: ChatMessage[], incoming: ChatMessage) {

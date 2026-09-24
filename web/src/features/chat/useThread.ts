@@ -1,11 +1,13 @@
+import { useEffect, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { keys } from "../../shared/query/keys"
 import { loadMessages } from "./api"
-import { merge, sortMessages, writeThread, type Thread } from "./thread"
+import { merge, openingSlice, sortMessages, writeThread, type Thread } from "./thread"
 import type { ChatMessage } from "./useSocket"
 
 export function useThread(conversationId: string) {
   const client = useQueryClient()
+  const olderLock = useRef(false)
   const query = useQuery({
     queryKey: keys.messages(conversationId),
     queryFn: async () => {
@@ -21,18 +23,35 @@ export function useThread(conversationId: string) {
       return { messages, older: page.next_cursor, fromServer: true } satisfies Thread
     },
     enabled: Boolean(conversationId),
-    staleTime: (query) => (query.state.data as Thread | undefined)?.fromServer ? Number.POSITIVE_INFINITY : 0,
+    staleTime: (query) => ((query.state.data as Thread | undefined)?.fromServer ? Number.POSITIVE_INFINITY : 0),
+    refetchOnMount: "always",
   })
 
+  useEffect(() => {
+    return () => {
+      const current = client.getQueryData<Thread>(keys.messages(conversationId))
+      if (!current?.messages.length) return
+      const messages = openingSlice(current.messages)
+      if (messages.length === current.messages.length) return
+      client.setQueryData<Thread>(keys.messages(conversationId), { ...current, messages, older: null })
+    }
+  }, [client, conversationId])
+
   async function loadOlder() {
+    if (olderLock.current) return
     const current = client.getQueryData<Thread>(keys.messages(conversationId))
     if (!current?.older) return
-    const page = await loadMessages(conversationId, current.older)
-    writeThread(client, conversationId, (thread) => {
-      let messages = thread.messages
-      for (const item of page.messages) messages = merge(messages, item)
-      return { ...thread, messages, older: page.next_cursor, fromServer: true }
-    })
+    olderLock.current = true
+    try {
+      const page = await loadMessages(conversationId, current.older)
+      writeThread(client, conversationId, (thread) => {
+        let messages = thread.messages
+        for (const item of page.messages) messages = merge(messages, item)
+        return { ...thread, messages, older: page.next_cursor, fromServer: true }
+      })
+    } finally {
+      olderLock.current = false
+    }
   }
 
   function put(message: ChatMessage) {

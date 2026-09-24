@@ -85,6 +85,10 @@
   min-height: 0;
   pointer-events: none;
 }
+.thread-older {
+  height: 1px;
+  flex-shrink: 0;
+}
 .post {
   display: flex;
   flex-direction: column;

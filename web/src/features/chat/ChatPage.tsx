@@ -170,7 +170,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
         older={thread.older}
         dockSpace={dockSpace}
         followSent={followSent}
-        onOlder={() => void thread.loadOlder()}
+        onOlder={() => thread.loadOlder()}
         onReply={(message) => { setEditing(null); setReply(message) }}
         onEdit={(message) => { setReply(null); setEditing(message) }}
         onDelete={(message) => setToDelete(message)}

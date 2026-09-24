@@ -358,3 +358,67 @@ async def test_admin_reads_one_account(client):
     hidden = await client.get(f"/api/accounts/{account['id']}")
     assert hidden.status_code == 404
 
+
+async def _seed_thread(conversation_id: str, sender_id: str, rows: list[tuple[str, timedelta]]) -> None:
+    now = utcnow()
+    async with get_sessionmaker()() as session:
+        for body, age in rows:
+            created = now - age
+            session.add(
+                Message(
+                    conversation_id=uuid.UUID(conversation_id),
+                    sender_id=uuid.UUID(sender_id),
+                    type="text",
+                    body=body,
+                    created_at=created,
+                    updated_at=created,
+                )
+            )
+        await session.commit()
+
+
+async def test_opening_window_is_recent_days_then_cursor(client):
+    account = await _client(client, "history.long")
+    rows = [(f"old-{index}", timedelta(days=10, minutes=90 - index)) for index in range(90)]
+    rows += [(f"new-{index}", timedelta(hours=12, minutes=25 - index)) for index in range(25)]
+    await _seed_thread(account["conversation_id"], account["id"], rows)
+    listed = await client.get(f"/api/conversations/{account['conversation_id']}/messages")
+    assert listed.status_code == 200
+    payload = listed.json()
+    bodies = [item["body"] for item in payload["messages"]]
+    assert len(bodies) == 40
+    assert bodies[0] == "old-75"
+    assert bodies[-1] == "new-24"
+    assert payload["next_cursor"]
+    older = await client.get(
+        f"/api/conversations/{account['conversation_id']}/messages",
+        params={"cursor": payload["next_cursor"]},
+    )
+    assert older.status_code == 200
+    older_bodies = [item["body"] for item in older.json()["messages"]]
+    assert older_bodies[0] == "old-25"
+    assert older_bodies[-1] == "old-74"
+    assert len(older_bodies) == 50
+    assert older.json()["next_cursor"]
+
+
+async def test_opening_window_caps_busy_recent_thread(client):
+    account = await _client(client, "history.busy")
+    rows = [(f"busy-{index}", timedelta(hours=20, minutes=90 - index)) for index in range(90)]
+    await _seed_thread(account["conversation_id"], account["id"], rows)
+    listed = await client.get(f"/api/conversations/{account['conversation_id']}/messages")
+    assert listed.status_code == 200
+    payload = listed.json()
+    bodies = [item["body"] for item in payload["messages"]]
+    assert len(bodies) == 80
+    assert bodies[0] == "busy-10"
+    assert bodies[-1] == "busy-89"
+    assert payload["next_cursor"]
+    older = await client.get(
+        f"/api/conversations/{account['conversation_id']}/messages",
+        params={"cursor": payload["next_cursor"]},
+    )
+    older_bodies = [item["body"] for item in older.json()["messages"]]
+    assert older_bodies == [f"busy-{index}" for index in range(10)]
+    assert older.json()["next_cursor"] is None
+
