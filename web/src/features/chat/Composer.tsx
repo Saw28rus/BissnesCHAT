@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import type { FormEvent } from "react"
 import type { ChatMessage } from "./useSocket"
+import { prepareUpload } from "./photo"
 
 type Props = {
   reply: ChatMessage | null
@@ -76,7 +77,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     if (!file) return
     setError("")
     try {
-      await onSendFile(file)
+      await onSendFile(await prepareUpload(file))
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Файл не ушёл")
     }

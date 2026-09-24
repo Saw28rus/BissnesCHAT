@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { Button } from "../../shared/ui/button/Button"
+import { isPhotoType } from "./photo"
 import type { ChatMessage } from "./useSocket"
 
 function stamp(value: string) {
@@ -8,10 +9,6 @@ function stamp(value: string) {
 
 function dayLabel(value: string) {
   return new Intl.DateTimeFormat("ru", { day: "numeric", month: "long" }).format(new Date(value))
-}
-
-function isPhoto(type: string) {
-  return type === "image/jpeg" || type === "image/png" || type === "image/webp"
 }
 
 function money(amount: string, currency: string) {
@@ -97,12 +94,13 @@ export function MessageList({
                   </>
                 ) : null}
                 {!deleted && message.type === "file" && message.attachment ? (
-                  isPhoto(message.attachment.content_type) ? (
+                  isPhotoType(message.attachment.content_type) ? (
                     <a className="photo-link" href={`/api/attachments/${message.attachment.id}`} target="_blank" rel="noopener noreferrer">
                       <img
                         className="photo"
                         src={`/api/attachments/${message.attachment.id}`}
-                        alt={message.attachment.name}
+                        alt=""
+                        loading="lazy"
                       />
                     </a>
                   ) : (

@@ -169,13 +169,20 @@ async def test_file_is_private(client):
     assert rejected.json()["error"] == "file_type"
 
 
+MIN_JPEG = (
+    b"\xff\xd8"
+    b"\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+    b"\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00"
+    b"\xff\xd9"
+)
+
+
 async def test_photo_without_extension_is_inline(client):
     account = await _client(client, "photofiler")
-    jpeg = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 24
     uploaded = await client.post(
         f"/api/conversations/{account['conversation_id']}/files",
         data={"kind": "file"},
-        files={"upload": ("17902394673197396366364642326", jpeg, "application/octet-stream")},
+        files={"upload": ("17902394673197396366364642326", MIN_JPEG, "application/octet-stream")},
         headers=await auth_header(client),
     )
     assert uploaded.status_code == 201, uploaded.text
@@ -184,6 +191,19 @@ async def test_photo_without_extension_is_inline(client):
     shown = await client.get(f"/api/attachments/{body['attachment']['id']}")
     assert shown.status_code == 200
     assert "inline" in shown.headers["content-disposition"].lower()
+
+
+async def test_jpeg_header_without_frame_is_rejected(client):
+    account = await _client(client, "badjpeg")
+    fake = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"\x00" * 24
+    rejected = await client.post(
+        f"/api/conversations/{account['conversation_id']}/files",
+        data={"kind": "file"},
+        files={"upload": ("shot.jpg", fake, "image/jpeg")},
+        headers=await auth_header(client),
+    )
+    assert rejected.status_code == 400
+    assert rejected.json()["error"] == "file_type"
 
 
 async def test_backup_roundtrip_skips_old_voice_and_deleted(client):
