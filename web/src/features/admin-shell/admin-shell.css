@@ -93,6 +93,10 @@
   align-items: center;
   justify-content: center;
   gap: 2px;
+  background-color: transparent;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+  user-select: none;
+  -webkit-user-select: none;
   transition: transform 120ms ease, color 120ms ease, background-color 120ms ease;
 }
 .dock-item span {
