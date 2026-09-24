@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useLayoutEffect, useRef } from "react"
 import { Button } from "../../shared/ui/button/Button"
 import { isPhotoType } from "./photo"
 import type { ChatMessage } from "./useSocket"
@@ -23,6 +23,7 @@ type Props = {
   selfId: string
   selfRole: "admin" | "client"
   older: string | null
+  dockSpace?: number
   onOlder: () => void
   onReply: (message: ChatMessage) => void
   onEdit: (message: ChatMessage) => void
@@ -35,6 +36,7 @@ export function MessageList({
   selfId,
   selfRole,
   older,
+  dockSpace = 80,
   onOlder,
   onReply,
   onEdit,
@@ -43,11 +45,11 @@ export function MessageList({
   const box = useRef<HTMLDivElement>(null)
   const stick = useRef(true)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const node = box.current
     if (!node || !stick.current) return
     node.scrollTop = node.scrollHeight
-  }, [messages])
+  }, [messages, dockSpace])
 
   function onScroll() {
     const node = box.current
@@ -58,6 +60,7 @@ export function MessageList({
   let previousDay = ""
   return (
     <div className="thread" ref={box} onScroll={onScroll}>
+      <div className="thread-fill" aria-hidden="true" />
       {older ? <Button type="button" tone="quiet" onClick={onOlder}>Более ранние</Button> : null}
       {loading ? <p className="hint">Открываем переписку</p> : null}
       {!loading && messages.length === 0 ? <p className="hint">Переписка ещё пустая.</p> : null}

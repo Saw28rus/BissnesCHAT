@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
+import type { CSSProperties } from "react"
 import { Link } from "react-router-dom"
 import { useSession } from "../../app/session"
 import { editText, removeMessage, sendFile, sendInvoice, sendText } from "./api"
@@ -31,6 +32,18 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
   const [invoiceBusy, setInvoiceBusy] = useState(false)
   const [invoiceError, setInvoiceError] = useState("")
   const [error, setError] = useState("")
+  const dock = useRef<HTMLDivElement>(null)
+  const [dockSpace, setDockSpace] = useState(80)
+
+  useLayoutEffect(() => {
+    const node = dock.current
+    if (!node) return
+    const sync = () => setDockSpace(Math.ceil(node.getBoundingClientRect().height))
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   async function onSendInvoice(payload: { amount: string; period: string; template_id?: string; days: number }) {
     setInvoiceBusy(true)
@@ -108,7 +121,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
   const online = link === "live"
 
   return (
-    <section className="chat">
+    <section className="chat" style={{ "--chat-dock": `${dockSpace}px` } as CSSProperties}>
       <header className="chat-head">
         <div className="chat-who">
           {backTo ? <Link className="back-link" to={backTo}>К списку</Link> : null}
@@ -145,32 +158,35 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
         selfId={profile?.id ?? ""}
         selfRole={profile?.role === "admin" ? "admin" : "client"}
         older={thread.older}
+        dockSpace={dockSpace}
         onOlder={() => void thread.loadOlder()}
         onReply={(message) => { setEditing(null); setReply(message) }}
         onEdit={(message) => { setReply(null); setEditing(message) }}
         onDelete={(message) => setToDelete(message)}
       />
-      {invoiceOpen && profile?.role === "admin" ? (
-        <InvoiceForm
-          connected={Boolean(yookassa.data?.connected)}
-          busy={invoiceBusy}
-          error={invoiceError}
-          clientName={title}
-          onCancel={() => { setInvoiceOpen(false); setInvoiceError("") }}
-          onSend={onSendInvoice}
+      <div className="chat-dock" ref={dock}>
+        {invoiceOpen && profile?.role === "admin" ? (
+          <InvoiceForm
+            connected={Boolean(yookassa.data?.connected)}
+            busy={invoiceBusy}
+            error={invoiceError}
+            clientName={title}
+            onCancel={() => { setInvoiceOpen(false); setInvoiceError("") }}
+            onSend={onSendInvoice}
+          />
+        ) : null}
+        <Composer
+          reply={reply}
+          editing={editing}
+          onCancelReply={() => setReply(null)}
+          onCancelEdit={() => setEditing(null)}
+          onSendText={onSendText}
+          onSendFile={onSendFile}
+          onSendVoice={onSendVoice}
+          onEdit={onEdit}
+          onInvoice={profile?.role === "admin" ? () => { setEditing(null); setReply(null); setInvoiceOpen(true) } : undefined}
         />
-      ) : null}
-      <Composer
-        reply={reply}
-        editing={editing}
-        onCancelReply={() => setReply(null)}
-        onCancelEdit={() => setEditing(null)}
-        onSendText={onSendText}
-        onSendFile={onSendFile}
-        onSendVoice={onSendVoice}
-        onEdit={onEdit}
-        onInvoice={profile?.role === "admin" ? () => { setEditing(null); setReply(null); setInvoiceOpen(true) } : undefined}
-      />
+      </div>
       <Confirm
         open={Boolean(toDelete)}
         title="Удалить сообщение?"
