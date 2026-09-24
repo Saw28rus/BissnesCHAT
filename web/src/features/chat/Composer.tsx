@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useLayoutEffect, useRef, useState } from "react"
 import type { FormEvent, PointerEvent } from "react"
 import type { ChatMessage } from "./useSocket"
 import { prepareUpload } from "./photo"
@@ -54,6 +54,10 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
   useEffect(() => {
     fitArea(areaRef.current)
   }, [text, recording])
+
+  useLayoutEffect(() => {
+    if (recording) areaRef.current?.focus()
+  }, [recording])
 
   useEffect(() => {
     if (!recording) {
@@ -130,9 +134,11 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     willCancelRef.current = false
     setWillCancel(false)
     const media = recorder.current
-    if (!media || media.state === "inactive") return
-    cancel.current = discard
-    media.stop()
+    if (media && media.state !== "inactive") {
+      cancel.current = discard
+      media.stop()
+    }
+    focusField()
   }
 
   async function onRecDown(event: PointerEvent<HTMLButtonElement>) {
@@ -143,6 +149,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
     willCancelRef.current = false
     setWillCancel(false)
     setError("")
+    focusField()
     event.currentTarget.setPointerCapture(event.pointerId)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -163,12 +170,9 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
         recorder.current = null
         setRecording(false)
         window.clearTimeout(lockTimer.current)
+        focusField()
         const duration = Math.round((Date.now() - started.current) / 1000)
-        if (cancel.current) return
-        if (duration < 1) {
-          setError("Удерживайте, чтобы записать")
-          return
-        }
+        if (cancel.current || duration < 1) return
         const type = media.mimeType.includes("mp4") ? "audio/mp4" : "audio/webm"
         const name = type === "audio/mp4" ? "voice.mp4" : "voice.webm"
         const file = new File(chunks.current, name, { type })
@@ -179,6 +183,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
       media.start()
       recorder.current = media
       setRecording(true)
+      focusField()
       window.clearTimeout(lockTimer.current)
       lockTimer.current = window.setTimeout(() => {
         if (recorder.current && recorder.current.state === "recording") {
@@ -262,28 +267,32 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
               ) : null}
             </>
           )}
+          <textarea
+            ref={areaRef}
+            className={recording ? "rec-hold" : ""}
+            value={text}
+            placeholder="Сообщение"
+            rows={1}
+            enterKeyHint="send"
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              if (recording) {
+                event.preventDefault()
+                return
+              }
+              const phone = window.matchMedia("(pointer: coarse)").matches
+              if (event.key === "Enter" && !event.shiftKey && !phone && !event.nativeEvent.isComposing) {
+                event.preventDefault()
+                event.currentTarget.form?.requestSubmit()
+              }
+            }}
+          />
           {recording ? (
             <>
               <span className="rec-mark" aria-hidden="true" />
               <span className="rec-time">{clock(elapsed)}</span>
             </>
-          ) : (
-            <textarea
-              ref={areaRef}
-              value={text}
-              placeholder="Сообщение"
-              rows={1}
-              enterKeyHint="send"
-              onChange={(event) => setText(event.target.value)}
-              onKeyDown={(event) => {
-                const phone = window.matchMedia("(pointer: coarse)").matches
-                if (event.key === "Enter" && !event.shiftKey && !phone && !event.nativeEvent.isComposing) {
-                  event.preventDefault()
-                  event.currentTarget.form?.requestSubmit()
-                }
-              }}
-            />
-          )}
+          ) : null}
           {editing ? (
             <button className="field-btn send send-ok" type="submit" aria-label="Сохранить" tabIndex={-1} disabled={!text.trim()} onPointerDown={keepKeyboard}>
               ОК
@@ -298,6 +307,7 @@ export function Composer({ reply, editing, onCancelReply, onCancelEdit, onSendTe
             <button
               className={`field-btn mic ${recording ? "rec" : ""}`}
               type="button"
+              tabIndex={-1}
               aria-label={recording ? (willCancel ? "Отмена" : "Отпустите, чтобы отправить") : "Голосовое"}
               onPointerDown={(event) => void onRecDown(event)}
               onPointerMove={onRecMove}

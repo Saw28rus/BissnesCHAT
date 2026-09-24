@@ -248,6 +248,7 @@
   white-space: nowrap;
 }
 .composer-row {
+  position: relative;
   display: flex;
   align-items: flex-end;
   min-height: 48px;
@@ -267,6 +268,19 @@
   padding: 10px 6px;
   font-size: 16px;
   line-height: 1.35;
+}
+.composer-row textarea.rec-hold {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 .composer-row textarea:focus,
 .composer-row textarea:focus-visible {
