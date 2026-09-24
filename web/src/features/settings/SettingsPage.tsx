@@ -69,7 +69,7 @@ export function SettingsPage({ nested = false }: { nested?: boolean }) {
         />
         Локальные уведомления, пока приложение открыто
       </label>
-      <p className="hint">Если вкладку закрыли, уведомление не придёт. На iPhone этот режим ненадёжен.</p>
+      <p className="hint">На iPhone уведомление из вкладки ненадёжно.</p>
       {profile.role === "admin" ? (
         <form onSubmit={changePassword} className="form-page">
           <h2>Пароль администратора</h2>

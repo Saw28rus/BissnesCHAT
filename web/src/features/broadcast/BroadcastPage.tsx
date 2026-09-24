@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
 import type { FormEvent } from "react"
-import { Link } from "react-router-dom"
 import { loadAccounts, type AccountCard } from "../accounts/api"
 import { ApiError } from "../../shared/api/client"
 import { Button } from "../../shared/ui/button/Button"
@@ -48,9 +47,7 @@ export function BroadcastPage() {
 
   return (
     <section className="plain-page">
-      <Link to="/admin/chats">К диалогам</Link>
-      <h1>Рассылка</h1>
-      <p className="hint">Сообщение придёт выбранным клиентам в их диалог с вами. Чужие кабинеты его не увидят.</p>
+      <p className="hint">Сообщение придёт выбранным клиентам в их диалог с вами.</p>
       <form onSubmit={(event) => void submit(event)}>
         <label className="pick-all">
           <input

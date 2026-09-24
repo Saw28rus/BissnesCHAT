@@ -1,14 +1,22 @@
-.field { display: flex; flex-direction: column; gap: 6px; }
-.field span { font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field span { font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
 .field input, .field textarea, .field select {
   width: 100%;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: var(--radius-field);
   background: transparent;
-  padding: 10px 0;
-  min-height: 44px;
+  padding: 8px 0;
+  min-height: 40px;
 }
-.field textarea { min-height: 88px; resize: vertical; }
-.hint { color: var(--muted); font-size: 14px; }
-.fail { color: var(--danger); font-size: 14px; }
+.field textarea { min-height: 80px; resize: vertical; }
+.field.compact { gap: 0; }
+.field.compact input {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+  background: var(--in);
+}
+.hint { color: var(--muted); font-size: 13px; }
+.fail { color: var(--danger); font-size: 13px; }

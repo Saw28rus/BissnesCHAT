@@ -1,14 +1,14 @@
 [data-theme="dark"] {
-  --bg: #141311;
-  --ink: #efe8dc;
-  --line: #3a342c;
-  --accent: #e0b15a;
-  --accent-ink: #141311;
-  --muted: #a39888;
-  --in: #1e1b17;
-  --out: #e0b15a;
-  --out-ink: #141311;
-  --danger: #e0b15a;
-  --ok: #8fbf9f;
+  --bg: #141716;
+  --ink: #e8ebe8;
+  --line: #2c3230;
+  --accent: #8fbfa8;
+  --accent-ink: #141716;
+  --muted: #8d9692;
+  --in: #1b201e;
+  --out: #8fbfa8;
+  --out-ink: #141716;
+  --danger: #d4897a;
+  --ok: #8fbfa8;
   color-scheme: dark;
 }

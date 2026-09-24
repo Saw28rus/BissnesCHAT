@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom"
 import { api } from "../../shared/api/client"
+import { UpdateScreen } from "../updates/UpdateScreen"
 import "./admin-shell.css"
 
 const ITEMS = [
@@ -33,10 +34,10 @@ export function AdminLayout() {
       <header className="topbar">
         <Link className="brand" to="/admin/chats">Бизнес ЧАТ</Link>
       </header>
-      {reminder ? <p className="banner">Резервную копию не скачивали больше 7 дней.</p> : null}
       <div className="shell-body">
         <Outlet />
       </div>
+      <UpdateScreen />
       <nav className="dock" aria-label="Разделы кабинета">
         {ITEMS.map((item) => {
           const Icon = item.icon
@@ -44,7 +45,7 @@ export function AdminLayout() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={({ isActive }) => `dock-item${isActive ? " active" : ""}${pressed === item.to ? " pressed" : ""}`}
+              className={({ isActive }) => `dock-item${isActive ? " active" : ""}${pressed === item.to ? " pressed" : ""}${item.to === "/admin/settings" && reminder ? " mark" : ""}`}
               onPointerDown={() => setPressed(item.to)}
               onPointerUp={() => setPressed(null)}
               onPointerCancel={() => setPressed(null)}

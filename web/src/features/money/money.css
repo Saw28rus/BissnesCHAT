@@ -1,9 +1,9 @@
 .money-page { display: flex; flex-direction: column; }
-.money-head, .money-pad, .money-row { padding: 16px; }
-.money-head h1 { margin: 0 0 10px; font-size: 22px; }
+.money-head, .money-pad, .money-row { padding: 12px 16px; }
+.money-head h1 { margin: 0 0 8px; font-size: 18px; }
 .money-head a,
 .money-row a {
-  min-height: 44px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   text-decoration: none;

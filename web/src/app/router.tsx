@@ -78,9 +78,9 @@ export function AppRouter() {
       <Route path="/settings" element={<Gate><SettingsPage /></Gate>} />
       <Route path="/admin" element={<Gate><AdminOnly><AdminLayout /></AdminOnly></Gate>}>
         <Route index element={<Navigate to="chats" replace />} />
-        <Route path="chats/broadcast" element={<BroadcastPage />} />
         <Route path="chats" element={<ChatDesk />}>
-          <Route index element={<p className="hint form-page">Выберите диалог или сделайте рассылку.</p>} />
+          <Route index element={<p className="hint form-page">Выберите диалог.</p>} />
+          <Route path="broadcast" element={<BroadcastPage />} />
           <Route path=":conversationId" element={<AdminChat />} />
         </Route>
         <Route path="clients" element={<ClientCards />} />

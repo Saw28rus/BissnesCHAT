@@ -1,12 +1,12 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from "react"
 import "./field.css"
 
-type Props = InputHTMLAttributes<HTMLInputElement> & { label: string }
+type Props = InputHTMLAttributes<HTMLInputElement> & { label: string; compact?: boolean }
 
-export function Field({ label, ...props }: Props) {
+export function Field({ label, compact = false, ...props }: Props) {
   return (
-    <label className="field">
-      <span>{label}</span>
+    <label className={`field${compact ? " compact" : ""}`}>
+      <span className={compact ? "sr-only" : undefined}>{label}</span>
       <input {...props} />
     </label>
   )

@@ -50,13 +50,25 @@ export function ChatList() {
     })
   }, [subscribe])
 
+  useEffect(() => {
+    if (!query) {
+      void reload("")
+      return
+    }
+    const timer = window.setTimeout(() => void reload(query), 180)
+    return () => window.clearTimeout(timer)
+  }, [query])
+
   return (
     <aside className="chat-list">
       <header>
-        <form onSubmit={(event) => { event.preventDefault(); void reload() }}>
-          <Field label="Поиск" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Имя, телефон, ЭДО, ИНН" />
-        </form>
-        <p><Link className="action-pill" to="/admin/chats/broadcast">Рассылка</Link></p>
+        <Field
+          compact
+          label="Поиск"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Имя, телефон, ЭДО, ИНН"
+        />
         {error ? <p className="fail">{error}</p> : null}
       </header>
       {items.map((item) => {

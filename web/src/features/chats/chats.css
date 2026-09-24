@@ -5,18 +5,13 @@
   overscroll-behavior: contain;
   background: var(--bg);
 }
-.chat-list header,
-.chat-row { padding: 14px 16px; }
-.chat-list header { display: flex; flex-direction: column; gap: 10px; }
-.chat-list header a {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-}
+.chat-list header { padding: 8px 12px; }
 .chat-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 12px;
   text-decoration: none;
   border-top: 1px solid var(--line);
 }
@@ -27,13 +22,13 @@
   align-items: baseline;
 }
 .chat-row strong {
-  font-size: 16px;
+  font-size: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .chat-row time,
-.chat-row small { color: var(--muted); font-size: 13px; }
+.chat-row small { color: var(--muted); font-size: 12px; }
 .chat-row.current { border-left: 2px solid var(--accent); }
 .chat-row.empty { color: var(--muted); }
 .chat-row.empty strong { font-weight: 500; }

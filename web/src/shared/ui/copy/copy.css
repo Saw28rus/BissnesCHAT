@@ -4,10 +4,10 @@
   gap: 8px;
 }
 .copy-chip {
-  min-height: 44px;
+  min-height: 40px;
   min-width: 0;
-  flex: 1 1 140px;
-  padding: 6px 10px;
+  flex: 1 1 120px;
+  padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--in);

@@ -29,39 +29,65 @@
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 .shell.desk-mode .shell-body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
 }
+.shell.desk-mode .chat-desk {
+  flex: 1;
+  min-height: 0;
+}
 .form-page,
 .plain-page {
   max-width: 640px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 16px;
+  gap: 12px;
+  padding: 12px 16px;
 }
 .form-page > a,
 .plain-page > a {
-  min-height: 44px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
 }
+.page-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.page-head h1,
+.form-page h1,
+.plain-page h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.page-head a {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+  text-decoration: none;
+  color: var(--accent);
+}
 .row-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .action-pill {
-  min-height: 40px;
-  padding: 0 14px;
+  min-height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--accent);
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: var(--accent);
   color: var(--accent-ink);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
   font-weight: 500;
+  font-size: 14px;
 }
 .action-pill.quiet {
   background: var(--in);
@@ -74,18 +100,18 @@
   right: 12px;
   bottom: calc(10px + env(safe-area-inset-bottom));
   z-index: 20;
-  height: 64px;
-  padding: 6px;
+  height: 56px;
+  padding: 4px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 10px;
   background: var(--in);
 }
 .dock-item {
   min-width: 0;
-  border-radius: 16px;
+  border-radius: 8px;
   color: var(--muted);
   text-decoration: none;
   display: flex;
@@ -111,6 +137,50 @@
 .dock-item.pressed,
 .dock-item:active {
   transform: scale(0.92);
+}
+.dock-item.mark span::after {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+.desk-tabs {
+  display: flex;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.desk-tabs a {
+  min-height: 40px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.desk-tabs a.active {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.chat-desk {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.chat-desk-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 .workspace {
   flex: 1;
