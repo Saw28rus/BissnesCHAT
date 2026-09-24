@@ -6,6 +6,7 @@ import { api, ApiError } from "../../shared/api/client"
 import { Button } from "../../shared/ui/button/Button"
 import { Field } from "../../shared/ui/field/Field"
 import { applyThemeColor } from "../../shared/theme/color"
+import { persistNotifications, requestBrowserPermission } from "../pwa/notify"
 import "./settings.css"
 
 export function SettingsPage({ nested = false }: { nested?: boolean }) {
@@ -23,14 +24,14 @@ export function SettingsPage({ nested = false }: { nested?: boolean }) {
   }
 
   async function setNotifications(enabled: boolean) {
-    if (enabled && Notification.permission === "default") {
-      const permission = await Notification.requestPermission()
-      if (permission !== "granted") {
+    if (enabled) {
+      const granted = await requestBrowserPermission(true)
+      if (!granted) {
         setError("Браузер не разрешил уведомления")
         return
       }
     }
-    await api("/api/auth/settings", { method: "PATCH", json: { notifications_enabled: enabled } })
+    await persistNotifications(enabled)
     await refresh()
   }
 

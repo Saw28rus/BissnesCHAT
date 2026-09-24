@@ -5,6 +5,7 @@ import { api, ApiError } from "../../shared/api/client"
 import { Button } from "../../shared/ui/button/Button"
 import { Field } from "../../shared/ui/field/Field"
 import type { Profile } from "../../app/session"
+import { canAskNotifications, requestBrowserPermission } from "../pwa/notify"
 import "./login.css"
 
 export function LoginPage() {
@@ -18,8 +19,10 @@ export function LoginPage() {
     event.preventDefault()
     setPending(true)
     setError("")
+    const notify = canAskNotifications() ? requestBrowserPermission() : Promise.resolve(true)
     try {
       const profile = await api<Profile>("/api/auth/login", { method: "POST", json: { login, password } })
+      await notify
       localStorage.setItem("bchat-theme", profile.theme)
       document.documentElement.dataset.theme = profile.theme
       navigate(profile.role === "admin" ? "/admin" : "/", { replace: true })
