@@ -120,6 +120,22 @@
   padding: 4px 4px 4px 10px;
 }
 .bubble-body { min-width: 0; flex: 1; padding: 1px 4px 1px 0; }
+.bubble.has-photo {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  width: fit-content;
+  max-width: min(168px, 100%);
+  padding: 4px;
+}
+.bubble.from-client.has-photo { padding: 4px; }
+.bubble.has-photo .bubble-body { flex: none; padding: 0; }
+.bubble.has-photo .bubble-tools {
+  order: -1;
+  align-self: flex-end;
+}
+.bubble.has-photo .quote { margin: 0 2px 4px; }
+.bubble.has-photo .meta { margin-top: 4px; padding: 0 2px; }
 .quote {
   border-left: 2px solid var(--accent);
   padding-left: 6px;
@@ -299,6 +315,7 @@
   max-width: 160px;
   margin: 2px 0;
 }
+.bubble.has-photo .photo-link { margin: 0; max-width: 100%; }
 .photo {
   display: block;
   width: auto;
@@ -309,6 +326,7 @@
   border-radius: 6px;
   background: var(--bg);
 }
+.bubble.has-photo .photo { max-width: 100%; }
 .invoice-form {
   margin: 0 12px 8px;
   padding: 12px 12px 10px;
@@ -366,4 +384,5 @@ audio { width: min(280px, 70vw); }
 }
 @media (pointer: coarse) {
   .btn.quiet { min-height: 44px; }
+  .bubble.has-photo .bubble-tool { width: 40px; height: 40px; }
 }

@@ -68,10 +68,13 @@ export function MessageList({
         const mine = message.sender_id === selfId
         const fromClient = selfRole === "client" ? mine : !mine
         const deleted = Boolean(message.deleted_at)
+        const photo = Boolean(
+          !deleted && message.type === "file" && message.attachment && isPhotoType(message.attachment.content_type),
+        )
         return (
           <article key={message.client_nonce ?? message.id} className="post">
             {showDay ? <div className="day">{day}</div> : null}
-            <div className={`bubble ${fromClient ? "from-client" : "from-admin"}`}>
+            <div className={`bubble ${fromClient ? "from-client" : "from-admin"}${photo ? " has-photo" : ""}`}>
               <div className="bubble-body">
                 {message.reply_quote ? <div className="quote">{message.reply_quote}</div> : null}
                 {deleted ? <p className="deleted">Сообщение удалено</p> : null}
