@@ -3,6 +3,7 @@ import { keys } from "../../shared/query/keys"
 import { previewOf } from "../chat/thread"
 import type { ChatMessage } from "../chat/useSocket"
 import type { AccountCard } from "./api"
+import { matchHay } from "./fields"
 
 export function sortClients(items: AccountCard[]) {
   return items.slice().sort((left, right) => left.display_name.localeCompare(right.display_name, "ru"))
@@ -20,7 +21,7 @@ export function sortChats(items: AccountCard[]) {
 export function matchAccount(item: AccountCard, query: string) {
   const needle = query.trim().toLocaleLowerCase("ru")
   if (!needle) return true
-  const hay = [item.display_name, item.login, item.phone ?? "", item.inn ?? "", item.edo_id ?? ""]
+  const hay = matchHay(item)
   return hay.some((value) => value.toLocaleLowerCase("ru").includes(needle))
 }
 

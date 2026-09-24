@@ -44,7 +44,7 @@ function AdminChat() {
       conversationId={conversationId}
       title={client?.display_name || "Клиент"}
       backTo="/admin/chats"
-      client={client ? { id: client.id, edo_id: client.edo_id } : undefined}
+      client={client ? { id: client.id, edo_id: client.edo_id, fields: client.fields } : undefined}
     />
   )
 }

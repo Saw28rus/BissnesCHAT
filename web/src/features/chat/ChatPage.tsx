@@ -11,13 +11,14 @@ import { useThread } from "./useThread"
 import { Confirm } from "../../shared/ui/confirm/Confirm"
 import { CopyButton } from "../../shared/ui/copy/CopyButton"
 import { useYookassa } from "../yookassa/useYookassa"
+import { edoValue } from "../accounts/fields"
 import "./chat.css"
 
 type Props = {
   conversationId: string
   title: string
   backTo?: string
-  client?: { id?: string; edo_id?: string | null }
+  client?: { id?: string; edo_id?: string | null; fields?: { label: string; value: string }[] }
 }
 
 export function ChatPage({ conversationId, title, backTo, client }: Props) {
@@ -128,6 +129,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
   }
 
   const online = link === "live"
+  const edo = edoValue(client)
 
   return (
     <section className="chat" style={{ "--chat-dock": `${dockSpace}px` } as CSSProperties}>
@@ -138,9 +140,9 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
             <h1>{title}</h1>
             <span className={`presence ${online ? "on" : ""}`}>{online ? "В сети" : "Не в сети"}</span>
           </div>
-          {backTo && client?.edo_id ? (
+          {backTo && edo ? (
             <div className="chat-edo">
-              <CopyButton label="ЭДО" value={client.edo_id} />
+              <CopyButton label="ЭДО" value={edo} />
             </div>
           ) : null}
         </div>

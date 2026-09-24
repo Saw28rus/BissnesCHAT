@@ -34,3 +34,14 @@ class UserSettings(Base):
     notifications_enabled: Mapped[bool] = mapped_column(nullable=False, default=False)
 
     user: Mapped[User] = relationship(back_populates="settings")
+
+
+class ClientField(Base):
+    __tablename__ = "client_fields"
+    __table_args__ = (Index("ix_client_fields_user", "user_id", "position"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    label: Mapped[str] = mapped_column(String(40), nullable=False)
+    value: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    position: Mapped[int] = mapped_column(nullable=False, default=0)

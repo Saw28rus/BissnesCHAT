@@ -14,6 +14,7 @@ export type AccountCard = {
   last_seen_at: string | null
   last_message_at: string | null
   preview: string | null
+  fields?: { id: string; label: string; value: string }[]
 }
 
 type AccountPayload = {
@@ -23,6 +24,7 @@ type AccountPayload = {
   inn?: string
   edo_id?: string
   note?: string
+  fields?: { label: string; value: string }[]
 }
 
 export function loadAccounts(query = "") {

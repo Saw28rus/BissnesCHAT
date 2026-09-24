@@ -6,8 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.core.security import hash_password, utcnow
-from app.modules.accounts.models import User, UserSettings
-from app.modules.accounts.schemas import AccountCreate, AccountUpdate
+from app.modules.accounts.models import ClientField, User, UserSettings
+from app.modules.accounts.schemas import AccountCreate, AccountUpdate, ClientParam
 from app.modules.attachments.models import Attachment
 from app.modules.audit.service import record
 from app.modules.auth.models import AuthSession
@@ -45,7 +45,18 @@ def _clean_opt(value: str | None, limit: int) -> str | None:
     return text[:limit] or None
 
 
-def _card(client: User, conversation_id: str | None, last_seen: str | None, preview: str | None, last_message_at: str | None) -> dict:
+_INN_LABELS = {"инн", "inn"}
+_EDO_LABELS = {"эдо", "edo", "номер эдо"}
+
+
+def _card(
+    client: User,
+    conversation_id: str | None,
+    last_seen: str | None,
+    preview: str | None,
+    last_message_at: str | None,
+    fields: list[dict] | None = None,
+) -> dict:
     return {
         "id": str(client.id),
         "login": client.login,
@@ -60,7 +71,66 @@ def _card(client: User, conversation_id: str | None, last_seen: str | None, prev
         "last_seen_at": last_seen,
         "last_message_at": last_message_at,
         "preview": preview,
+        "fields": fields or [],
     }
+
+
+def _present_fields(client: User, rows: list[ClientField]) -> list[dict]:
+    if rows:
+        return [{"id": str(row.id), "label": row.label, "value": row.value} for row in rows]
+    extra: list[dict] = []
+    if client.edo_id:
+        extra.append({"id": "legacy-edo", "label": "ЭДО", "value": client.edo_id})
+    if client.inn:
+        extra.append({"id": "legacy-inn", "label": "ИНН", "value": client.inn})
+    return extra
+
+
+def _sync_legacy(client: User, items: list[ClientParam]) -> None:
+    inn = None
+    edo = None
+    for item in items:
+        key = item.label.strip().casefold()
+        if key in _INN_LABELS:
+            inn = _clean_opt(item.value, 12)
+        if key in _EDO_LABELS:
+            edo = _clean_opt(item.value, 64)
+    client.inn = inn
+    client.edo_id = edo
+
+
+async def _load_fields(session: AsyncSession, user_ids: list[uuid.UUID]) -> dict[uuid.UUID, list[ClientField]]:
+    grouped: dict[uuid.UUID, list[ClientField]] = {user_id: [] for user_id in user_ids}
+    if not user_ids:
+        return grouped
+    rows = (
+        await session.scalars(
+            select(ClientField).where(ClientField.user_id.in_(user_ids)).order_by(ClientField.position, ClientField.id)
+        )
+    ).all()
+    for row in rows:
+        grouped.setdefault(row.user_id, []).append(row)
+    return grouped
+
+
+async def _replace_fields(session: AsyncSession, client: User, items: list[ClientParam]) -> list[ClientField]:
+    await session.execute(delete(ClientField).where(ClientField.user_id == client.id))
+    rows: list[ClientField] = []
+    for index, item in enumerate(items):
+        label = item.label.strip()[:40]
+        if not label:
+            continue
+        row = ClientField(
+            user_id=client.id,
+            label=label,
+            value=(item.value or "").strip()[:200],
+            position=index,
+        )
+        session.add(row)
+        rows.append(row)
+    _sync_legacy(client, [ClientParam(label=row.label, value=row.value) for row in rows])
+    await session.flush()
+    return rows
 
 
 async def _login_taken(session: AsyncSession, login: str, except_id: uuid.UUID | None = None) -> bool:
@@ -85,6 +155,11 @@ async def list_clients(session: AsyncSession, query: str) -> list[dict]:
             | func.lower(func.coalesce(User.phone, "")).like(needle)
             | func.lower(func.coalesce(User.inn, "")).like(needle)
             | func.lower(func.coalesce(User.edo_id, "")).like(needle)
+            | User.id.in_(
+                select(ClientField.user_id).where(
+                    func.lower(ClientField.label).like(needle) | func.lower(ClientField.value).like(needle)
+                )
+            )
         )
     clients = (await session.scalars(stmt)).all()
     if not clients:
@@ -114,6 +189,7 @@ async def list_clients(session: AsyncSession, query: str) -> list[dict]:
         )
     ).all()
     seen = {user_id: _iso(moment) for user_id, moment in seen_rows}
+    fields_by_user = await _load_fields(session, ids)
     result = []
     for client in clients:
         conversation = by_client.get(client.id)
@@ -125,6 +201,7 @@ async def list_clients(session: AsyncSession, query: str) -> list[dict]:
                 seen.get(client.id),
                 _preview(preview),
                 _iso(preview.created_at) if preview else None,
+                _present_fields(client, fields_by_user.get(client.id, [])),
             )
         )
     return result
@@ -142,12 +219,14 @@ async def get_client_card(session: AsyncSession, account_id: uuid.UUID) -> dict:
             .limit(1)
         )
     last_seen = await session.scalar(select(func.max(AuthSession.last_seen_at)).where(AuthSession.user_id == client.id))
+    fields = await _load_fields(session, [client.id])
     return _card(
         client,
         str(conversation.id) if conversation else None,
         _iso(last_seen),
         _preview(preview_row),
         _iso(preview_row.created_at) if preview_row else None,
+        _present_fields(client, fields.get(client.id, [])),
     )
 
 
@@ -174,6 +253,14 @@ async def create_client(session: AsyncSession, actor: User, payload: AccountCrea
     conversation = Conversation(client_id=client.id, created_at=now)
     session.add(conversation)
     await session.flush()
+    params = list(payload.fields)
+    if not params:
+        if payload.edo_id:
+            params.append(ClientParam(label="ЭДО", value=payload.edo_id))
+        if payload.inn:
+            params.append(ClientParam(label="ИНН", value=payload.inn))
+    if params:
+        await _replace_fields(session, client, params)
     await record(session, actor.id, "account.create", client.id)
     return {
         "id": str(client.id),
@@ -200,7 +287,28 @@ async def update_client(session: AsyncSession, actor: User, account_id: uuid.UUI
         client.edo_id = _clean_opt(payload.edo_id, 64)
     if payload.note is not None:
         client.note = payload.note.strip() or None
+    if payload.fields is not None:
+        await _replace_fields(session, client, payload.fields)
+    else:
+        if payload.inn is not None:
+            client.inn = _clean_opt(payload.inn, 12)
+        if payload.edo_id is not None:
+            client.edo_id = _clean_opt(payload.edo_id, 64)
+        if payload.inn is not None or payload.edo_id is not None:
+            current = (await _load_fields(session, [client.id])).get(client.id, [])
+            if current:
+                params = [ClientParam(label=row.label, value=row.value) for row in current]
+                if payload.inn is not None:
+                    params = [item for item in params if item.label.strip().casefold() not in _INN_LABELS]
+                    if client.inn:
+                        params.append(ClientParam(label="ИНН", value=client.inn))
+                if payload.edo_id is not None:
+                    params = [item for item in params if item.label.strip().casefold() not in _EDO_LABELS]
+                    if client.edo_id:
+                        params.append(ClientParam(label="ЭДО", value=client.edo_id))
+                await _replace_fields(session, client, params)
     await record(session, actor.id, "account.update", client.id)
+    fields = (await _load_fields(session, [client.id])).get(client.id, [])
     return {
         "id": str(client.id),
         "login": client.login,
@@ -208,6 +316,7 @@ async def update_client(session: AsyncSession, actor: User, account_id: uuid.UUI
         "phone": client.phone,
         "inn": client.inn,
         "edo_id": client.edo_id,
+        "fields": _present_fields(client, fields),
     }
 
 
@@ -255,6 +364,7 @@ async def delete_client(session: AsyncSession, actor: User, account_id: uuid.UUI
             await session.execute(delete(Attachment).where(Attachment.id.in_(attachment_ids)))
         await session.delete(conversation)
     await session.execute(delete(AuthSession).where(AuthSession.user_id == client.id))
+    await session.execute(delete(ClientField).where(ClientField.user_id == client.id))
     settings = await session.get(UserSettings, client.id)
     if settings is not None:
         await session.delete(settings)

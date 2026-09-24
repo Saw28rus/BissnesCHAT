@@ -3,12 +3,12 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AppError
 from app.core.security import utcnow
-from app.modules.accounts.models import User, UserSettings
+from app.modules.accounts.models import ClientField, User, UserSettings
 from app.modules.audit.service import record
 from app.modules.backup.crypto import decrypt_backup, encrypt_backup
 from app.modules.backup.models import BackupMeta
@@ -44,6 +44,12 @@ async def export_backup(
         await session.scalars(select(Conversation).where(Conversation.client_id.in_(client_ids)))
     ).all() if client_ids else []
     conversation_by_client = {item.client_id: item for item in conversations}
+    field_rows = (
+        await session.scalars(select(ClientField).where(ClientField.user_id.in_(client_ids)).order_by(ClientField.position, ClientField.id))
+    ).all() if client_ids else []
+    fields_by_user: dict[uuid.UUID, list[ClientField]] = {}
+    for row in field_rows:
+        fields_by_user.setdefault(row.user_id, []).append(row)
     payload_clients = []
     for client in clients:
         conversation = conversation_by_client.get(client.id)
@@ -61,6 +67,11 @@ async def export_backup(
                 "note": client.note,
                 "theme": settings.theme if settings else "light",
                 "notifications_enabled": bool(settings.notifications_enabled) if settings else False,
+                "phone": client.phone,
+                "fields": [
+                    {"label": row.label, "value": row.value}
+                    for row in fields_by_user.get(client.id, [])
+                ],
             }
         )
     messages_payload: list[dict] = []
@@ -221,6 +232,7 @@ async def restore_backup(
                 role="client",
                 password_hash=client.password_hash,
                 display_name=client.display_name,
+                phone=client.phone,
                 status=client.status,
                 note=client.note,
                 created_at=utcnow(),
@@ -244,6 +256,7 @@ async def restore_backup(
             current.login = client.login
             current.password_hash = client.password_hash
             current.display_name = client.display_name
+            current.phone = client.phone
             current.status = client.status
             current.note = client.note
             settings = await session.get(UserSettings, current.id)
@@ -263,6 +276,9 @@ async def restore_backup(
                 conversation = Conversation(id=client.conversation_id, client_id=current.id, created_at=utcnow())
                 session.add(conversation)
             updated += 1
+        await session.execute(delete(ClientField).where(ClientField.user_id == current.id))
+        for index, item in enumerate(client.fields):
+            session.add(ClientField(user_id=current.id, label=item.label, value=item.value, position=index))
         conversation = await session.scalar(select(Conversation).where(Conversation.client_id == current.id))
         imported_clients[client.id] = conversation.id if conversation else client.conversation_id
     await session.flush()

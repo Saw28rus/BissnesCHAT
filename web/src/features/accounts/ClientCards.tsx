@@ -28,7 +28,7 @@ export function ClientCards() {
           label="Поиск"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Имя, телефон, ЭДО, ИНН"
+          placeholder="Имя, телефон, параметр"
         />
         {isError ? <p className="fail">Список не открылся</p> : null}
       </header>

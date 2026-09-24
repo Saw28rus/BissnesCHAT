@@ -14,6 +14,13 @@ class BackupClient(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
     theme: str = Field(pattern="^(light|dark)$")
     notifications_enabled: bool
+    phone: str | None = Field(default=None, max_length=32)
+    fields: list["BackupField"] = Field(default_factory=list)
+
+
+class BackupField(BaseModel):
+    label: str = Field(min_length=1, max_length=40)
+    value: str = Field(default="", max_length=200)
 
 
 class BackupMessage(BaseModel):
