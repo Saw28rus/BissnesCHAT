@@ -3,7 +3,6 @@ import { Link } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import { ApiError } from "../../shared/api/client"
 import { keys } from "../../shared/query/keys"
-import { Button } from "../../shared/ui/button/Button"
 import { Confirm } from "../../shared/ui/confirm/Confirm"
 import { useYookassa } from "../yookassa/useYookassa"
 import { hideInvoice, type InvoiceBucket, type InvoiceRow } from "./api"
@@ -20,7 +19,15 @@ const TABS: { id: InvoiceBucket; label: string }[] = [
 
 function moneyStamp(value: string | null) {
   if (!value) return ""
-  return new Date(value).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+  return new Date(value).toLocaleString("ru-RU", { day: "numeric", month: "short" })
+}
+
+function rowMeta(row: InvoiceRow, bucket: InvoiceBucket) {
+  const period = row.period || row.description
+  if (row.status === "succeeded") return [period, `оплачен ${moneyStamp(row.paid_at)}`].filter(Boolean).join(" · ")
+  const until = moneyStamp(row.expires_at)
+  if (!until) return period
+  return [period, bucket === "overdue" ? `срок ${until}` : `до ${until}`].filter(Boolean).join(" · ")
 }
 
 export function MoneyPage() {
@@ -52,15 +59,19 @@ export function MoneyPage() {
     <section className="money-page">
       <header className="money-head">
         <h1>Деньги</h1>
-        <div className="row-actions">
-          <Link className="money-create" to="/admin/money/new">Выставить счёт</Link>
-          <Link to="/admin/money/templates">Шаблоны</Link>
+        <div className="money-tools">
+          <Link className="money-templates" to="/admin/money/templates">Шаблоны</Link>
+          <Link className="money-add" to="/admin/money/new" aria-label="Выставить счёт">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path d="M9 3.5v11M3.5 9h11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </Link>
         </div>
-        {connected ? null : (
-          <p className="fail">ЮKassa не подключена. <Link to="/admin/settings/yookassa">Подключить</Link></p>
-        )}
       </header>
-      <div className="money-tabs" role="tablist">
+      {connected ? null : (
+        <p className="fail money-note">ЮKassa не подключена. <Link to="/admin/settings/yookassa">Подключить</Link></p>
+      )}
+      <nav className="money-tabs" role="tablist" aria-label="Счета">
         {TABS.map((tab) => (
           <button
             key={tab.id}
@@ -73,26 +84,27 @@ export function MoneyPage() {
             {tab.label}
           </button>
         ))}
-      </div>
-      {error ? <p className="fail money-pad">{error}</p> : null}
-      {invoices.isError ? <p className="fail money-pad">Список счетов не открылся</p> : null}
+      </nav>
+      {error ? <p className="fail money-note">{error}</p> : null}
+      {invoices.isError ? <p className="fail money-note">Список счетов не открылся</p> : null}
       {rows.map((row) => (
         <article key={row.id} className="money-row">
           <div className="money-row-top">
             <strong>{row.client_name}</strong>
             <span>{formatRub(row.amount)}</span>
           </div>
-          <small>{row.period || row.description}</small>
-          <small>{row.status === "succeeded" ? `оплачен ${moneyStamp(row.paid_at)}` : `до ${moneyStamp(row.expires_at)}`}</small>
-          <div className="row-actions">
-            <Link to={`/admin/chats/${row.conversation_id}`}>В чат</Link>
-            {bucket !== "deleted" ? (
-              <Button type="button" tone="quiet" onClick={() => setToHide(row)}>В удалённые</Button>
-            ) : null}
+          <div className="money-row-meta">
+            <small className={bucket === "overdue" ? "late" : undefined}>{rowMeta(row, bucket)}</small>
+            <div className="money-row-acts">
+              <Link to={`/admin/chats/${row.conversation_id}`}>В чат</Link>
+              {bucket !== "deleted" ? (
+                <button type="button" onClick={() => setToHide(row)}>Убрать</button>
+              ) : null}
+            </div>
           </div>
         </article>
       ))}
-      {rows.length === 0 ? <p className="hint money-pad">В этом списке пусто.</p> : null}
+      {rows.length === 0 && !invoices.isPending ? <p className="hint money-note">В этом списке пусто.</p> : null}
       <Confirm
         open={Boolean(toHide)}
         title="Убрать счёт?"
