@@ -58,18 +58,19 @@ export function MoneyPage() {
   return (
     <section className="money-page">
       <header className="money-head">
-        <h1>Деньги</h1>
-        <div className="money-tools">
-          <Link className="money-templates" to="/admin/money/templates">Шаблоны</Link>
-          <Link className="money-add" to="/admin/money/new" aria-label="Выставить счёт">
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <path d="M9 3.5v11M3.5 9h11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </Link>
+        <div className="money-title">
+          <h1>Деньги</h1>
+          <Link className="money-sub" to="/admin/money/templates">Шаблоны писем</Link>
         </div>
+        <Link className="money-new" to="/admin/money/new">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d="M7 2.5v9M2.5 7h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+          Новый счёт
+        </Link>
       </header>
       {connected ? null : (
-        <p className="fail money-note">ЮKassa не подключена. <Link to="/admin/settings/yookassa">Подключить</Link></p>
+        <p className="money-warn">ЮKassa не подключена. <Link to="/admin/settings/yookassa">Подключить</Link></p>
       )}
       <nav className="money-tabs" role="tablist" aria-label="Счета">
         {TABS.map((tab) => (
@@ -87,23 +88,28 @@ export function MoneyPage() {
       </nav>
       {error ? <p className="fail money-note">{error}</p> : null}
       {invoices.isError ? <p className="fail money-note">Список счетов не открылся</p> : null}
-      {rows.map((row) => (
-        <article key={row.id} className="money-row">
-          <div className="money-row-top">
-            <strong>{row.client_name}</strong>
-            <span>{formatRub(row.amount)}</span>
-          </div>
-          <div className="money-row-meta">
-            <small className={bucket === "overdue" ? "late" : undefined}>{rowMeta(row, bucket)}</small>
-            <div className="money-row-acts">
-              <Link to={`/admin/chats/${row.conversation_id}`}>В чат</Link>
-              {bucket !== "deleted" ? (
-                <button type="button" onClick={() => setToHide(row)}>Убрать</button>
-              ) : null}
+      <div className="money-list">
+        {rows.map((row) => (
+          <article
+            key={row.id}
+            className={`money-row${bucket === "overdue" ? " is-overdue" : ""}${row.status === "succeeded" ? " is-paid" : ""}`}
+          >
+            <div className="money-line">
+              <strong>{row.client_name}</strong>
+              <span className="money-amount">{formatRub(row.amount)}</span>
             </div>
-          </div>
-        </article>
-      ))}
+            <div className="money-subline">
+              <small>{rowMeta(row, bucket)}</small>
+              <div className="money-row-acts">
+                <Link className="money-link" to={`/admin/chats/${row.conversation_id}`}>В чат</Link>
+                {bucket !== "deleted" ? (
+                  <button type="button" className="money-quiet" onClick={() => setToHide(row)}>Убрать</button>
+                ) : null}
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
       {rows.length === 0 && !invoices.isPending ? <p className="hint money-note">В этом списке пусто.</p> : null}
       <Confirm
         open={Boolean(toHide)}
