@@ -20,6 +20,7 @@ export type InvoiceRow = {
   paid_at: string | null
   deleted_at: string | null
   bucket: InvoiceBucket
+  orphan?: boolean
 }
 
 export type InvoiceTemplate = {

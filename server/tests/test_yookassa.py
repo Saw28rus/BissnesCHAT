@@ -28,7 +28,7 @@ def _items(response):
     return payload["items"]
 
 
-def _patch_yookassa(monkeypatch, *, me=None, bill=None, invoice=None, payment=None):
+def _patch_yookassa(monkeypatch, *, me=None, bill=None, invoice=None, payment=None, payments_list=None, invoices_list=None):
     async def get_me(shop_id: str, secret: str):
         if me is not None:
             if isinstance(me, Exception):
@@ -59,10 +59,22 @@ def _patch_yookassa(monkeypatch, *, me=None, bill=None, invoice=None, payment=No
             return payment if not callable(payment) else payment(payment_id)
         return {"id": payment_id, "status": "pending"}
 
+    async def list_payments(shop_id, secret, limit=20):
+        if payments_list is not None:
+            return payments_list
+        return {"type": "list", "items": []}
+
+    async def list_remote_invoices(shop_id, secret, limit=20):
+        if invoices_list is not None:
+            return invoices_list
+        raise YookassaHttp(404, {"code": "not_found"})
+
     monkeypatch.setattr("app.modules.yookassa.client.get_me", get_me)
     monkeypatch.setattr("app.modules.yookassa.client.create_bill", create_bill)
     monkeypatch.setattr("app.modules.yookassa.client.get_invoice", get_invoice)
     monkeypatch.setattr("app.modules.yookassa.client.get_payment", get_payment)
+    monkeypatch.setattr("app.modules.yookassa.client.list_payments", list_payments)
+    monkeypatch.setattr("app.modules.yookassa.client.list_remote_invoices", list_remote_invoices)
 
 
 async def test_connect_hides_secret_and_client_cannot_see(client, monkeypatch):
@@ -294,3 +306,65 @@ async def test_expired_yookassa_invoice_moves_to_overdue(client, monkeypatch):
     assert _items(overdue)[0]["bucket"] == "overdue"
     issued = await client.get("/api/invoices?bucket=issued", headers=headers)
     assert _items(issued) == []
+
+
+async def test_money_recovers_letter_from_chat(client, monkeypatch):
+    _patch_yookassa(monkeypatch)
+    account = await _open_client(client, "letterpay")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    headers = await _admin(client)
+    body = (
+        "Здравствуйте, ИП Лобанов! Счёт за Апрель 2026 на сумму 1 800 ₽ готов. "
+        "Ссылка для оплаты: https://yookassa.ru/my/i/live-letter\n\n"
+        "Счёт действителен до: 1 мая 2026 г., 12:00"
+    )
+    sent = await client.post(
+        f"/api/conversations/{account['conversation_id']}/messages",
+        json={"body": body},
+        headers=headers,
+    )
+    assert sent.status_code == 201, sent.text
+    issued = await client.get("/api/invoices?bucket=issued", headers=headers)
+    rows = _items(issued)
+    assert len(rows) == 1
+    assert rows[0]["amount"] == "1800.00"
+    assert rows[0]["client_name"] == "letterpay"
+    assert issued.json()["recovered"] == 1
+    assert issued.json()["invoices_in_db"] == 1
+
+
+async def test_money_shows_yookassa_payment_without_local_row(client, monkeypatch):
+    _patch_yookassa(
+        monkeypatch,
+        payments_list={
+            "type": "list",
+            "items": [
+                {
+                    "id": "pay-orphan-1",
+                    "status": "pending",
+                    "amount": {"value": "500.00", "currency": "RUB"},
+                    "description": "Счёт за Август 2026",
+                    "confirmation": {
+                        "type": "redirect",
+                        "confirmation_url": "https://yoomoney.ru/checkout/pay-orphan",
+                    },
+                    "metadata": {"bchat_invoice": str(uuid.uuid4())},
+                    "created_at": "2026-09-25T10:00:00.000Z",
+                    "test": True,
+                }
+            ],
+        },
+    )
+    await _open_client(client, "ghostpay")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    headers = await _admin(client)
+    await client.post(
+        "/api/yookassa/connect",
+        json={"shop_id": "123456", "secret_key": "test_secret_key_ok"},
+        headers=headers,
+    )
+    issued = await client.get("/api/invoices?bucket=issued", headers=headers)
+    rows = _items(issued)
+    assert len(rows) == 1
+    assert rows[0]["orphan"] is True
+    assert rows[0]["amount"] == "500.00"

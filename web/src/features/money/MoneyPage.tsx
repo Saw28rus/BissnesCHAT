@@ -118,8 +118,10 @@ export function MoneyPage() {
             <div className="money-subline">
               <small>{rowMeta(row, bucket)}</small>
               <div className="money-row-acts">
-                <Link className="money-link" to={`/admin/chats/${row.conversation_id}`}>В чат</Link>
-                {bucket !== "deleted" ? (
+                {row.conversation_id ? (
+                  <Link className="money-link" to={`/admin/chats/${row.conversation_id}`}>В чат</Link>
+                ) : null}
+                {bucket !== "deleted" && !row.orphan ? (
                   <button type="button" className="money-quiet" onClick={() => setToHide(row)}>Убрать</button>
                 ) : null}
               </div>

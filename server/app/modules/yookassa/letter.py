@@ -1,6 +1,11 @@
+import re
 from datetime import UTC, datetime, timedelta, timezone
 
 from decimal import Decimal
+
+_PAY_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
+_AMOUNT = re.compile(r"(\d[\d\s\u00a0]*(?:,\d{2})?)\s*₽")
+_PERIOD = re.compile(r"Счёт за (.+?) на сумму")
 
 _MONTHS = (
     "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
@@ -50,3 +55,25 @@ def fill_template(body: str, **values: str) -> str:
     for key, value in values.items():
         result = result.replace("{" + key + "}", value)
     return result
+
+
+def letter_pay_url(body: str) -> str:
+    match = _PAY_URL.search(body or "")
+    if not match:
+        return ""
+    return match.group(0).rstrip(").,];")
+
+
+def letter_amount_raw(body: str) -> str | None:
+    match = _AMOUNT.search(body or "")
+    return match.group(1) if match else None
+
+
+def letter_period(body: str) -> str | None:
+    match = _PERIOD.search(body or "")
+    return match.group(1).strip() if match else None
+
+
+def looks_like_invoice_letter(body: str) -> bool:
+    url = letter_pay_url(body or "").lower()
+    return "yookassa.ru" in url or "yoomoney.ru" in url

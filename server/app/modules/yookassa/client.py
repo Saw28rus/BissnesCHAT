@@ -95,6 +95,14 @@ async def get_payment(shop_id: str, secret: str, payment_id: str) -> dict:
     return await api_json("GET", f"/payments/{payment_id}", shop_id, secret)
 
 
+async def list_payments(shop_id: str, secret: str, limit: int = 20) -> dict:
+    return await api_json("GET", f"/payments?limit={limit}", shop_id, secret)
+
+
+async def list_remote_invoices(shop_id: str, secret: str, limit: int = 20) -> dict:
+    return await api_json("GET", f"/invoices?limit={limit}", shop_id, secret)
+
+
 async def api_json(
     method: str,
     path: str,
@@ -103,18 +111,17 @@ async def api_json(
     payload: dict | None = None,
     idempotence: str | None = None,
 ) -> dict:
-    headers = {"Content-Type": "application/json"}
+    headers = {}
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
     if idempotence:
         headers["Idempotence-Key"] = idempotence
     try:
         async with httpx.AsyncClient(timeout=20.0) as client:
-            response = await client.request(
-                method,
-                f"{API}{path}",
-                json=payload,
-                headers=headers,
-                auth=(shop_id, secret),
-            )
+            kwargs: dict = {"headers": headers, "auth": (shop_id, secret)}
+            if payload is not None:
+                kwargs["json"] = payload
+            response = await client.request(method, f"{API}{path}", **kwargs)
     except httpx.HTTPError as exc:
         raise AppError(502, "yookassa_unavailable") from exc
     data = {}
