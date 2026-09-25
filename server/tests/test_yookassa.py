@@ -59,7 +59,7 @@ def _patch_yookassa(monkeypatch, *, me=None, bill=None, invoice=None, payment=No
             return payment if not callable(payment) else payment(payment_id)
         return {"id": payment_id, "status": "pending"}
 
-    async def list_payments(shop_id, secret, limit=50, status=None):
+    async def list_payments(shop_id, secret, limit=100, status=None, pages=4):
         payload = payments_list if payments_list is not None else {"type": "list", "items": []}
         if status:
             return {"type": "list", "items": [item for item in payload.get("items", []) if item.get("status") == status]}
@@ -417,3 +417,49 @@ async def test_yookassa_succeeded_shop_payments_go_to_paid(client, monkeypatch):
     assert rows[0]["amount"] == "3000.00"
     assert rows[0]["client_name"] == "ИП Семеняченко"
     assert rows[0]["conversation_id"]
+
+
+async def test_pending_invoice_shows_in_issued_after_canceled_payment(client, monkeypatch):
+    _patch_yookassa(
+        monkeypatch,
+        invoice=lambda invoice_id: {
+            "id": invoice_id,
+            "status": "pending",
+            "description": "Оплата: ИП Попова",
+            "delivery_method": {"type": "self", "url": "https://yookassa.ru/my/i/popova"},
+            "cart": [{"price": {"value": "1800.00", "currency": "RUB"}, "quantity": 1}],
+            "metadata": {"custName": "ИП Попова", "cms_name": "cliento_app"},
+            "created_at": "2026-09-20T10:00:00.000Z",
+        },
+        payments_list={
+            "type": "list",
+            "items": [
+                {
+                    "id": "pay-try-1",
+                    "status": "canceled",
+                    "amount": {"value": "1800.00", "currency": "RUB"},
+                    "description": "Оплата: ИП Попова",
+                    "cancellation_details": {"party": "yoo_money", "reason": "expired_on_confirmation"},
+                    "invoice_details": {"id": "in-popova-pending"},
+                    "metadata": {"custName": "ИП Попова", "cms_name": "cliento_app"},
+                    "created_at": "2026-09-20T10:05:00.000Z",
+                }
+            ],
+        },
+    )
+    await _open_client(client, "popova")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    headers = await _admin(client)
+    await client.post(
+        "/api/yookassa/connect",
+        json={"shop_id": "123456", "secret_key": "test_secret_key_ok"},
+        headers=headers,
+    )
+    issued = await client.get("/api/invoices?bucket=issued", headers=headers)
+    rows = _items(issued)
+    assert len(rows) == 1
+    assert rows[0]["id"] == "in-popova-pending"
+    assert rows[0]["status"] == "pending"
+    assert rows[0]["amount"] == "1800.00"
+    overdue = await client.get("/api/invoices?bucket=overdue", headers=headers)
+    assert _items(overdue) == []

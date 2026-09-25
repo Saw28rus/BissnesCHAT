@@ -95,11 +95,24 @@ async def get_payment(shop_id: str, secret: str, payment_id: str) -> dict:
     return await api_json("GET", f"/payments/{payment_id}", shop_id, secret)
 
 
-async def list_payments(shop_id: str, secret: str, limit: int = 50, status: str | None = None) -> dict:
-    path = f"/payments?limit={limit}"
-    if status:
-        path += f"&status={status}"
-    return await api_json("GET", path, shop_id, secret)
+async def list_payments(shop_id: str, secret: str, limit: int = 100, status: str | None = None, pages: int = 4) -> dict:
+    from urllib.parse import quote
+
+    items: list[dict] = []
+    cursor = None
+    for _ in range(max(1, pages)):
+        path = f"/payments?limit={limit}"
+        if status:
+            path += f"&status={status}"
+        if cursor:
+            path += f"&cursor={quote(str(cursor), safe='')}"
+        data = await api_json("GET", path, shop_id, secret)
+        batch = data.get("items") if isinstance(data.get("items"), list) else []
+        items.extend(item for item in batch if isinstance(item, dict))
+        cursor = data.get("next_cursor")
+        if not cursor:
+            break
+    return {"type": "list", "items": items}
 
 
 async def list_remote_invoices(shop_id: str, secret: str, limit: int = 50, status: str | None = None) -> dict:

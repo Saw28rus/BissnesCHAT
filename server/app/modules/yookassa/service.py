@@ -354,9 +354,34 @@ def _mapped_status(status: str) -> str:
     return "pending"
 
 
+def _invoice_amount(obj: dict) -> dict:
+    amount = obj.get("amount") if isinstance(obj.get("amount"), dict) else {}
+    if amount.get("value"):
+        return amount
+    data = obj.get("payment_data") if isinstance(obj.get("payment_data"), dict) else {}
+    nested = data.get("amount") if isinstance(data.get("amount"), dict) else {}
+    if nested.get("value"):
+        return nested
+    total = Decimal("0.00")
+    currency = "RUB"
+    cart = obj.get("cart") if isinstance(obj.get("cart"), list) else []
+    for line in cart:
+        if not isinstance(line, dict):
+            continue
+        price = line.get("price") if isinstance(line.get("price"), dict) else {}
+        try:
+            value = Decimal(str(price.get("value") or "0"))
+            qty = Decimal(str(line.get("quantity") or "1"))
+        except InvalidOperation:
+            continue
+        currency = str(price.get("currency") or currency)
+        total += value * qty
+    return {"value": f"{total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}", "currency": currency}
+
+
 def present_orphan(obj: dict, client: User | None = None, conversation_id: str = "") -> dict:
     status = _mapped_status(str(obj.get("status") or "pending"))
-    amount_obj = obj.get("amount") if isinstance(obj.get("amount"), dict) else {}
+    amount_obj = _invoice_amount(obj)
     created = str(obj.get("created_at") or "")
     captured = str(obj.get("captured_at") or "")
     name = _cust_name(obj)
@@ -392,6 +417,36 @@ async def _safe_collection(fn) -> dict:
         return {"http": "error", "error": exc.code}
 
 
+async def hydrate_invoices_from_payments(shop: str, secret: str, payments: list[dict]) -> list[dict]:
+    succeeded: set[str] = set()
+    candidates: list[str] = []
+    seen: set[str] = set()
+    for pay in payments:
+        details = pay.get("invoice_details") if isinstance(pay.get("invoice_details"), dict) else {}
+        inv_id = str(details.get("id") or "")
+        if not inv_id:
+            continue
+        if str(pay.get("status") or "") == "succeeded":
+            succeeded.add(inv_id)
+            continue
+        if inv_id not in seen:
+            seen.add(inv_id)
+            candidates.append(inv_id)
+    fetched: list[dict] = []
+    for inv_id in candidates:
+        if inv_id in succeeded:
+            continue
+        try:
+            data = await yk.get_invoice(shop, secret, inv_id)
+        except (YookassaHttp, AppError):
+            continue
+        if isinstance(data, dict) and data.get("id"):
+            fetched.append(data)
+        if len(fetched) >= 40:
+            break
+    return fetched
+
+
 async def load_yookassa_lists(session: AsyncSession) -> dict:
     settings_row = await load_settings(session)
     if settings_row is None:
@@ -401,17 +456,23 @@ async def load_yookassa_lists(session: AsyncSession) -> dict:
             "payments_pending": None,
             "invoices": None,
             "invoices_pending": None,
+            "invoices_from_payments": None,
         }
     secret = decrypt_secret(settings_row.secret_blob)
     shop = settings_row.shop_id
+    payments = await _safe_collection(lambda: yk.list_payments(shop, secret))
+    payments_pending = await _safe_collection(lambda: yk.list_payments(shop, secret, status="pending", pages=2))
+    payment_items = _collection_items(payments) + _collection_items(payments_pending)
+    hydrated = await hydrate_invoices_from_payments(shop, secret, payment_items)
     return {
         "connected": True,
-        "payments": await _safe_collection(lambda: yk.list_payments(shop, secret)),
-        "payments_pending": await _safe_collection(lambda: yk.list_payments(shop, secret, status="pending")),
+        "payments": payments,
+        "payments_pending": payments_pending,
         "invoices": await _safe_collection(lambda: yk.list_remote_invoices(shop, secret)),
         "invoices_pending": await _safe_collection(
             lambda: yk.list_remote_invoices(shop, secret, status="pending")
         ),
+        "invoices_from_payments": {"http": 200, "body": {"type": "list", "items": hydrated}},
     }
 
 
@@ -493,11 +554,13 @@ async def list_invoices(session: AsyncSession, bucket: str) -> dict:
     recent = list((await session.scalars(select(Message).order_by(Message.created_at.desc()).limit(400))).all())
     remote = await load_yookassa_lists(session)
     remote_objects = _merge_remote(
+        remote.get("invoices_from_payments"),
         remote.get("invoices"),
         remote.get("invoices_pending"),
         remote.get("payments"),
         remote.get("payments_pending"),
     )
+    remote_objects.sort(key=lambda obj: 0 if str(obj.get("id") or "").startswith("in-") else 1)
     recovered = await recover_from_messages(session, recent, remote_objects)
     invoice_messages = sum(1 for item in recent if item.type == "invoice")
     invoices = list((await session.scalars(select(Invoice).order_by(Invoice.created_at.desc()))).all())
