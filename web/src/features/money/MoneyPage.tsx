@@ -35,7 +35,7 @@ export function MoneyPage() {
   const [bucket, setBucket] = useState<InvoiceBucket>("issued")
   const invoices = useInvoices(bucket)
   const yookassa = useYookassa()
-    const dump = invoices.data
+  const dump = invoices.data
   const rows = dump?.items ?? []
   const connected = yookassa.data?.connected !== false
   const [error, setError] = useState("")
