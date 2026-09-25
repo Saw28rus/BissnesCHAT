@@ -311,10 +311,39 @@ def _soft_amount(raw: str | None) -> str:
         return f"{value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):.2f}"
 
 
+def _cust_name(obj: dict) -> str:
+    meta = obj.get("metadata") if isinstance(obj.get("metadata"), dict) else {}
+    name = str(meta.get("custName") or "").strip()
+    if name:
+        return name
+    desc = str(obj.get("description") or "").strip()
+    if desc.lower().startswith("оплата:"):
+        return desc.split(":", 1)[1].strip()
+    return desc
+
+
 def _remote_pay_url(obj: dict) -> str:
     delivery = obj.get("delivery_method") if isinstance(obj.get("delivery_method"), dict) else {}
     confirmation = obj.get("confirmation") if isinstance(obj.get("confirmation"), dict) else {}
     return str(delivery.get("url") or obj.get("url") or confirmation.get("confirmation_url") or "")
+
+
+def _remote_ids(obj: dict) -> list[str]:
+    ids = [str(obj.get("id") or "")]
+    details = obj.get("invoice_details") if isinstance(obj.get("invoice_details"), dict) else {}
+    if details.get("id"):
+        ids.append(str(details["id"]))
+    return [item for item in ids if item]
+
+
+def _merge_remote(*probes: dict | None) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for probe in probes:
+        for item in _collection_items(probe):
+            remote_id = str(item.get("id") or "")
+            if remote_id:
+                merged[remote_id] = item
+    return list(merged.values())
 
 
 def _mapped_status(status: str) -> str:
@@ -325,26 +354,28 @@ def _mapped_status(status: str) -> str:
     return "pending"
 
 
-def present_orphan(obj: dict) -> dict:
+def present_orphan(obj: dict, client: User | None = None, conversation_id: str = "") -> dict:
     status = _mapped_status(str(obj.get("status") or "pending"))
     amount_obj = obj.get("amount") if isinstance(obj.get("amount"), dict) else {}
     created = str(obj.get("created_at") or "")
+    captured = str(obj.get("captured_at") or "")
+    name = _cust_name(obj)
     return {
         "id": str(obj.get("id") or ""),
-        "conversation_id": "",
+        "conversation_id": conversation_id,
         "message_id": "",
-        "client_id": "",
-        "client_name": str(obj.get("description") or "ЮKassa"),
+        "client_id": str(client.id) if client is not None else "",
+        "client_name": client.display_name if client is not None else name or "ЮKassa",
         "amount": str(amount_obj.get("value") or "0.00"),
         "currency": str(amount_obj.get("currency") or "RUB"),
         "period": None,
-        "description": str(obj.get("description") or ""),
+        "description": str(obj.get("description") or name),
         "status": status,
         "pay_url": _remote_pay_url(obj) if status == "pending" else None,
         "test": bool(obj.get("test")),
         "expires_at": str(obj.get("expires_at") or "") or None,
         "created_at": created or None,
-        "paid_at": created if status == "succeeded" else None,
+        "paid_at": (captured or created) if status == "succeeded" else None,
         "deleted_at": None,
         "bucket": classify_status(status),
         "orphan": True,
@@ -364,12 +395,23 @@ async def _safe_collection(fn) -> dict:
 async def load_yookassa_lists(session: AsyncSession) -> dict:
     settings_row = await load_settings(session)
     if settings_row is None:
-        return {"connected": False, "payments": None, "invoices": None}
+        return {
+            "connected": False,
+            "payments": None,
+            "payments_pending": None,
+            "invoices": None,
+            "invoices_pending": None,
+        }
     secret = decrypt_secret(settings_row.secret_blob)
+    shop = settings_row.shop_id
     return {
         "connected": True,
-        "payments": await _safe_collection(lambda: yk.list_payments(settings_row.shop_id, secret)),
-        "invoices": await _safe_collection(lambda: yk.list_remote_invoices(settings_row.shop_id, secret)),
+        "payments": await _safe_collection(lambda: yk.list_payments(shop, secret)),
+        "payments_pending": await _safe_collection(lambda: yk.list_payments(shop, secret, status="pending")),
+        "invoices": await _safe_collection(lambda: yk.list_remote_invoices(shop, secret)),
+        "invoices_pending": await _safe_collection(
+            lambda: yk.list_remote_invoices(shop, secret, status="pending")
+        ),
     }
 
 
@@ -449,17 +491,13 @@ async def list_invoices(session: AsyncSession, bucket: str) -> dict:
         raise AppError(400, "validation")
     invoices_before = int(await session.scalar(select(func.count()).select_from(Invoice)) or 0)
     recent = list((await session.scalars(select(Message).order_by(Message.created_at.desc()).limit(400))).all())
-    messages_preview = [
-        {
-            "id": str(item.id),
-            "type": item.type,
-            "created_at": iso(item.created_at),
-            "body": (item.body or "")[:180],
-        }
-        for item in recent[:20]
-    ]
     remote = await load_yookassa_lists(session)
-    remote_objects = _collection_items(remote.get("invoices")) + _collection_items(remote.get("payments"))
+    remote_objects = _merge_remote(
+        remote.get("invoices"),
+        remote.get("invoices_pending"),
+        remote.get("payments"),
+        remote.get("payments_pending"),
+    )
     recovered = await recover_from_messages(session, recent, remote_objects)
     invoice_messages = sum(1 for item in recent if item.type == "invoice")
     invoices = list((await session.scalars(select(Invoice).order_by(Invoice.created_at.desc()))).all())
@@ -483,6 +521,12 @@ async def list_invoices(session: AsyncSession, bucket: str) -> dict:
                 )
             ).all()
         }
+    clients = list((await session.scalars(select(User).where(User.role == "client"))).all())
+    clients_by_name = {row.display_name.strip().casefold(): row for row in clients if row.display_name}
+    conversations_by_client = {
+        row.client_id: row
+        for row in (await session.scalars(select(Conversation))).all()
+    }
     items = []
     rows = []
     known_remote = set()
@@ -517,28 +561,56 @@ async def list_invoices(session: AsyncSession, bucket: str) -> dict:
             }
         )
     for obj in remote_objects:
-        remote_id = str(obj.get("id") or "")
-        if not remote_id or remote_id in known_remote:
+        if any(item in known_remote for item in _remote_ids(obj)):
             continue
-        orphan = present_orphan(obj)
+        for item in _remote_ids(obj):
+            known_remote.add(item)
+        client = clients_by_name.get(_cust_name(obj).casefold())
+        conversation = conversations_by_client.get(client.id) if client is not None else None
+        orphan = present_orphan(
+            obj,
+            client,
+            str(conversation.id) if conversation is not None else "",
+        )
         if orphan["bucket"] != bucket:
             continue
         items.append(orphan)
+    paid_remote = sum(1 for obj in remote_objects if _mapped_status(str(obj.get("status") or "")) == "succeeded")
+    hint = None
+    if not items and bucket == "issued" and paid_remote:
+        hint = "Выставленных счетов нет. Оплаченные платежи этого магазина ЮKassa — во вкладке «Оплаченные»."
+    elif not items and bucket == "issued":
+        hint = "Выставленных счетов нет. Клиенту счёт уходит кнопкой «Новый счёт»."
     settings_row = await load_settings(session)
     return {
         "bucket": bucket,
         "items": items,
+        "hint": hint,
         "invoices_in_db": len(invoices),
         "invoices_before": invoices_before,
         "invoice_messages": invoice_messages,
         "messages_total": int(await session.scalar(select(func.count()).select_from(Message)) or 0),
-        "messages_preview": messages_preview,
         "recovered": recovered,
         "yookassa_connected": settings_row is not None,
         "rows": rows,
         "yookassa": yookassa_raw,
-        "yookassa_payments": remote.get("payments"),
-        "yookassa_invoices_list": remote.get("invoices"),
+        "probe": {
+            "payments_http": (remote.get("payments") or {}).get("http"),
+            "pending_http": (remote.get("payments_pending") or {}).get("http"),
+            "invoices_list_http": (remote.get("invoices") or {}).get("http"),
+            "remote": [
+                {
+                    "status": obj.get("status"),
+                    "amount": (obj.get("amount") or {}).get("value") if isinstance(obj.get("amount"), dict) else None,
+                    "name": _cust_name(obj),
+                    "ours": bool((obj.get("metadata") or {}).get("bchat_invoice"))
+                    if isinstance(obj.get("metadata"), dict)
+                    else False,
+                    "cms": (obj.get("metadata") or {}).get("cms_name") if isinstance(obj.get("metadata"), dict) else None,
+                }
+                for obj in remote_objects
+            ],
+        },
     }
 
 

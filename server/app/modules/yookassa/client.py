@@ -95,12 +95,18 @@ async def get_payment(shop_id: str, secret: str, payment_id: str) -> dict:
     return await api_json("GET", f"/payments/{payment_id}", shop_id, secret)
 
 
-async def list_payments(shop_id: str, secret: str, limit: int = 20) -> dict:
-    return await api_json("GET", f"/payments?limit={limit}", shop_id, secret)
+async def list_payments(shop_id: str, secret: str, limit: int = 50, status: str | None = None) -> dict:
+    path = f"/payments?limit={limit}"
+    if status:
+        path += f"&status={status}"
+    return await api_json("GET", path, shop_id, secret)
 
 
-async def list_remote_invoices(shop_id: str, secret: str, limit: int = 20) -> dict:
-    return await api_json("GET", f"/invoices?limit={limit}", shop_id, secret)
+async def list_remote_invoices(shop_id: str, secret: str, limit: int = 50, status: str | None = None) -> dict:
+    path = f"/invoices?limit={limit}"
+    if status:
+        path += f"&status={status}"
+    return await api_json("GET", path, shop_id, secret)
 
 
 async def api_json(

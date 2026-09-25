@@ -35,13 +35,15 @@ export function MoneyPage() {
   const [bucket, setBucket] = useState<InvoiceBucket>("issued")
   const invoices = useInvoices(bucket)
   const yookassa = useYookassa()
-  const dump = invoices.data
+    const dump = invoices.data
   const rows = dump?.items ?? []
   const connected = yookassa.data?.connected !== false
   const [error, setError] = useState("")
   const [toHide, setToHide] = useState<InvoiceRow | null>(null)
   const [busy, setBusy] = useState(false)
-  const rawText = dump ? JSON.stringify(dump, null, 2) : invoices.isError ? String(invoices.error) : ""
+  const hint = typeof dump?.raw === "object" && dump.raw && "hint" in dump.raw
+    ? String((dump.raw as { hint?: string | null }).hint || "")
+    : ""
 
   async function confirmHide() {
     if (!toHide) return
@@ -90,21 +92,6 @@ export function MoneyPage() {
       </nav>
       {error ? <p className="fail money-note">{error}</p> : null}
       {invoices.isError || dump?.ok === false ? <p className="fail money-note">Список счетов не открылся</p> : null}
-      {rawText ? (
-        <div className="money-probe">
-          <div className="money-probe-bar">
-            <p>Сырой ответ запроса счетов</p>
-            <button
-              type="button"
-              className="money-quiet"
-              onClick={() => void navigator.clipboard.writeText(rawText)}
-            >
-              Скопировать
-            </button>
-          </div>
-          <pre className="money-raw">{rawText}</pre>
-        </div>
-      ) : null}
       <div className="money-list">
         {rows.map((row) => (
           <article
@@ -133,7 +120,7 @@ export function MoneyPage() {
         <p className="hint money-note">Загружаем счета</p>
       ) : null}
       {rows.length === 0 && !invoices.isPending && !invoices.isFetching ? (
-        <p className="hint money-note">В этом списке пусто.</p>
+        <p className="hint money-note">{hint || "В этом списке пусто."}</p>
       ) : null}
       <Confirm
         open={Boolean(toHide)}

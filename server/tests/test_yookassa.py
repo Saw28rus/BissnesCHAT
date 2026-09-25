@@ -59,14 +59,18 @@ def _patch_yookassa(monkeypatch, *, me=None, bill=None, invoice=None, payment=No
             return payment if not callable(payment) else payment(payment_id)
         return {"id": payment_id, "status": "pending"}
 
-    async def list_payments(shop_id, secret, limit=20):
-        if payments_list is not None:
-            return payments_list
-        return {"type": "list", "items": []}
+    async def list_payments(shop_id, secret, limit=50, status=None):
+        payload = payments_list if payments_list is not None else {"type": "list", "items": []}
+        if status:
+            return {"type": "list", "items": [item for item in payload.get("items", []) if item.get("status") == status]}
+        return payload
 
-    async def list_remote_invoices(shop_id, secret, limit=20):
+    async def list_remote_invoices(shop_id, secret, limit=50, status=None):
         if invoices_list is not None:
-            return invoices_list
+            payload = invoices_list
+            if status:
+                return {"type": "list", "items": [item for item in payload.get("items", []) if item.get("status") == status]}
+            return payload
         raise YookassaHttp(404, {"code": "not_found"})
 
     monkeypatch.setattr("app.modules.yookassa.client.get_me", get_me)
@@ -368,3 +372,48 @@ async def test_money_shows_yookassa_payment_without_local_row(client, monkeypatc
     assert len(rows) == 1
     assert rows[0]["orphan"] is True
     assert rows[0]["amount"] == "500.00"
+
+
+async def test_yookassa_succeeded_shop_payments_go_to_paid(client, monkeypatch):
+    _patch_yookassa(
+        monkeypatch,
+        payments_list={
+            "type": "list",
+            "items": [
+                {
+                    "id": "pay-cliento-1",
+                    "status": "succeeded",
+                    "amount": {"value": "3000.00", "currency": "RUB"},
+                    "description": "Оплата: ИП Семеняченко",
+                    "captured_at": "2026-09-08T04:47:08.565Z",
+                    "created_at": "2026-09-08T04:46:01.814Z",
+                    "metadata": {
+                        "custName": "ИП Семеняченко",
+                        "cms_name": "cliento_app",
+                    },
+                }
+            ],
+        },
+    )
+    account = await _open_client(client, "semenyachenko")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    headers = await _admin(client)
+    await client.patch(
+        f"/api/accounts/{account['id']}",
+        json={"display_name": "ИП Семеняченко"},
+        headers=headers,
+    )
+    await client.post(
+        "/api/yookassa/connect",
+        json={"shop_id": "123456", "secret_key": "test_secret_key_ok"},
+        headers=headers,
+    )
+    issued = await client.get("/api/invoices?bucket=issued", headers=headers)
+    assert _items(issued) == []
+    assert "Оплаченные" in (issued.json().get("hint") or "")
+    paid = await client.get("/api/invoices?bucket=paid", headers=headers)
+    rows = _items(paid)
+    assert len(rows) == 1
+    assert rows[0]["amount"] == "3000.00"
+    assert rows[0]["client_name"] == "ИП Семеняченко"
+    assert rows[0]["conversation_id"]
