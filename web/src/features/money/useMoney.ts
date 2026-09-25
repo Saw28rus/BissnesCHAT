@@ -6,6 +6,7 @@ export function useInvoices(bucket: InvoiceBucket) {
   return useQuery({
     queryKey: keys.invoices(bucket),
     queryFn: () => loadInvoices(bucket),
+    refetchOnMount: "always",
   })
 }
 

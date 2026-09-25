@@ -110,7 +110,12 @@ export function MoneyPage() {
           </article>
         ))}
       </div>
-      {rows.length === 0 && !invoices.isPending ? <p className="hint money-note">В этом списке пусто.</p> : null}
+      {invoices.isPending || (invoices.isFetching && rows.length === 0) ? (
+        <p className="hint money-note">Загружаем счета</p>
+      ) : null}
+      {rows.length === 0 && !invoices.isPending && !invoices.isFetching ? (
+        <p className="hint money-note">В этом списке пусто.</p>
+      ) : null}
       <Confirm
         open={Boolean(toHide)}
         title="Убрать счёт?"

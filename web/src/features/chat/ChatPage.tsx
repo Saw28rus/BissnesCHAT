@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef, useState } from "react"
 import type { CSSProperties } from "react"
 import { Link } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { useSession } from "../../app/session"
+import { keys } from "../../shared/query/keys"
 import { editText, removeMessage, sendFile, sendInvoice, sendText } from "./api"
 import { Composer } from "./Composer"
 import { InvoiceForm } from "./InvoiceForm"
@@ -23,6 +25,7 @@ type Props = {
 
 export function ChatPage({ conversationId, title, backTo, client }: Props) {
   const { profile, link } = useSession()
+  const queryClient = useQueryClient()
   const thread = useThread(conversationId)
   const yookassa = useYookassa(profile?.role === "admin")
   const [reply, setReply] = useState<ChatMessage | null>(null)
@@ -56,6 +59,7 @@ export function ChatPage({ conversationId, title, backTo, client }: Props) {
     setInvoiceError("")
     try {
       thread.put(await sendInvoice(conversationId, payload, crypto.randomUUID()))
+      await queryClient.invalidateQueries({ queryKey: keys.invoicesRoot })
       followOwn()
       setInvoiceOpen(false)
     } catch (reason) {
