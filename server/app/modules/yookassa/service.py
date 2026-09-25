@@ -1,7 +1,7 @@
 import ipaddress
 import uuid
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -69,22 +69,13 @@ def present_settings(row: YookassaSettings | None) -> dict:
     return payload
 
 
-def _aware(value: datetime | None) -> datetime | None:
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value
-
-
-def classify_invoice(invoice: Invoice, now: datetime | None = None) -> str:
-    moment = now or utcnow()
+def classify_invoice(invoice: Invoice) -> str:
+    # ЮKassa: pending — выставлен, succeeded — оплачен, canceled — истёк или отменён.
     if invoice.deleted_at is not None:
         return "deleted"
     if invoice.status == "succeeded":
         return "paid"
-    expires = _aware(invoice.expires_at)
-    if invoice.status == "pending" and expires is not None and expires < moment:
+    if invoice.status in {"canceled", "cancelled"}:
         return "overdue"
     return "issued"
 
@@ -275,6 +266,7 @@ async def create_invoice(
         paid_at=now if bill["status"] == "succeeded" else None,
     )
     session.add(invoice)
+    await session.flush()
     await record(session, user.id, "invoice.create", conversation.client_id)
     payload = present_message(message, invoice=present_invoice(invoice, False))
     return payload, conversation.client_id
@@ -283,17 +275,33 @@ async def create_invoice(
 async def list_invoices(session: AsyncSession, bucket: str) -> list[dict]:
     if bucket not in {"issued", "overdue", "paid", "deleted"}:
         raise AppError(400, "validation")
-    rows = (
-        await session.execute(
-            select(Invoice, User)
-            .join(Conversation, Conversation.id == Invoice.conversation_id)
-            .join(User, User.id == Conversation.client_id)
-            .order_by(Invoice.created_at.desc())
-        )
-    ).all()
+    invoices = list((await session.scalars(select(Invoice).order_by(Invoice.created_at.desc()))).all())
+    await refresh_invoices(session, invoices)
+    if not invoices:
+        return []
+    conversations = {
+        row.id: row
+        for row in (
+            await session.scalars(
+                select(Conversation).where(Conversation.id.in_({item.conversation_id for item in invoices}))
+            )
+        ).all()
+    }
+    users = {
+        row.id: row
+        for row in (
+            await session.scalars(
+                select(User).where(User.id.in_({row.client_id for row in conversations.values()}))
+            )
+        ).all()
+    }
     result = []
-    for invoice, client in rows:
+    for invoice in invoices:
         if classify_invoice(invoice) != bucket:
+            continue
+        conversation = conversations.get(invoice.conversation_id)
+        client = users.get(conversation.client_id) if conversation is not None else None
+        if client is None:
             continue
         result.append(present_invoice_row(invoice, client))
     return result
@@ -392,16 +400,15 @@ async def handle_notification(session: AsyncSession, payload: dict, client_host:
     return present_message(message, invoice=present_invoice(invoice, message.deleted_at is not None))
 
 
-async def refresh_pending(session: AsyncSession, messages: list[Message]) -> None:
+async def refresh_invoices(session: AsyncSession, invoices: list[Invoice], limit: int = 20) -> None:
     settings_row = await load_settings(session)
     if settings_row is None:
         return
-    mapping = await invoice_map(session, messages)
-    pending = [mapping[item.id] for item in messages if item.id in mapping and mapping[item.id].status == "pending"]
+    pending = [item for item in invoices if item.status == "pending" and item.deleted_at is None]
     if not pending:
         return
     secret = decrypt_secret(settings_row.secret_blob)
-    for invoice in pending[:8]:
+    for invoice in pending[:limit]:
         try:
             if invoice.yookassa_invoice_id:
                 data = await yk.get_invoice(settings_row.shop_id, secret, invoice.yookassa_invoice_id)
@@ -420,6 +427,12 @@ async def refresh_pending(session: AsyncSession, messages: list[Message]) -> Non
             message = await session.get(Message, invoice.message_id)
             if message is not None:
                 message.updated_at = utcnow()
+
+
+async def refresh_pending(session: AsyncSession, messages: list[Message]) -> None:
+    mapping = await invoice_map(session, messages)
+    pending = [mapping[item.id] for item in messages if item.id in mapping]
+    await refresh_invoices(session, pending, limit=8)
 
 
 async def _find_invoice(session: AsyncSession, obj: dict) -> Invoice | None:

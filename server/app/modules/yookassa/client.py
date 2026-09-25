@@ -50,11 +50,13 @@ async def create_bill(
     }
     try:
         data = await api_json("POST", "/invoices", shop_id, secret, invoice_body, str(uuid.uuid4()))
-        url = (data.get("delivery_method") or {}).get("url")
-        if url:
+        delivery = data.get("delivery_method") if isinstance(data.get("delivery_method"), dict) else {}
+        url = str(delivery.get("url") or data.get("url") or "")
+        remote_id = str(data.get("id") or "")
+        if url or remote_id.startswith("in-"):
             return {
                 "kind": "invoice",
-                "remote_id": data["id"],
+                "remote_id": remote_id,
                 "url": url,
                 "test": bool(data.get("test")),
                 "status": data.get("status") or "pending",

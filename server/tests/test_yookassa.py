@@ -221,3 +221,67 @@ async def test_letter_and_invoice_buckets(client, monkeypatch):
     assert len(deleted.json()) == 1
     empty = await client.get("/api/invoices?bucket=issued", headers=headers)
     assert empty.json() == []
+
+
+def test_yookassa_pending_is_issued():
+    from types import SimpleNamespace
+    from datetime import datetime, timedelta, timezone
+
+    from app.modules.yookassa.service import classify_invoice
+
+    past = datetime.now(timezone.utc) - timedelta(days=3)
+    pending = SimpleNamespace(deleted_at=None, status="pending", expires_at=past)
+    assert classify_invoice(pending) == "issued"
+    assert classify_invoice(SimpleNamespace(deleted_at=None, status="succeeded", expires_at=None)) == "paid"
+    assert classify_invoice(SimpleNamespace(deleted_at=None, status="canceled", expires_at=past)) == "overdue"
+
+
+async def test_issued_list_refreshes_pending_from_yookassa(client, monkeypatch):
+    _patch_yookassa(monkeypatch)
+    account = await _open_client(client, "payer2")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    headers = await _admin(client)
+    await client.post(
+        "/api/yookassa/connect",
+        json={"shop_id": "123456", "secret_key": "test_secret_key_ok"},
+        headers=headers,
+    )
+    created = await client.post(
+        "/api/invoices",
+        json={"conversation_id": account["conversation_id"], "amount": "500", "period": "2026-08"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    issued = await client.get("/api/invoices?bucket=issued", headers=headers)
+    assert issued.status_code == 200
+    assert len(issued.json()) == 1
+    assert issued.json()[0]["status"] == "pending"
+    assert issued.json()[0]["bucket"] == "issued"
+    overdue = await client.get("/api/invoices?bucket=overdue", headers=headers)
+    assert overdue.json() == []
+
+
+async def test_expired_yookassa_invoice_moves_to_overdue(client, monkeypatch):
+    _patch_yookassa(
+        monkeypatch,
+        invoice={"id": "in-test-invoice", "status": "canceled"},
+    )
+    account = await _open_client(client, "latepay")
+    await client.post("/api/auth/logout", headers=await auth_header(client))
+    headers = await _admin(client)
+    await client.post(
+        "/api/yookassa/connect",
+        json={"shop_id": "123456", "secret_key": "test_secret_key_ok"},
+        headers=headers,
+    )
+    created = await client.post(
+        "/api/invoices",
+        json={"conversation_id": account["conversation_id"], "amount": "700", "period": "2026-07"},
+        headers=headers,
+    )
+    assert created.status_code == 201
+    overdue = await client.get("/api/invoices?bucket=overdue", headers=headers)
+    assert len(overdue.json()) == 1
+    assert overdue.json()[0]["bucket"] == "overdue"
+    issued = await client.get("/api/invoices?bucket=issued", headers=headers)
+    assert issued.json() == []
