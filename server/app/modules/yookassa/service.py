@@ -3,7 +3,7 @@ import uuid
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -272,39 +272,71 @@ async def create_invoice(
     return payload, conversation.client_id
 
 
-async def list_invoices(session: AsyncSession, bucket: str) -> list[dict]:
+async def list_invoices(session: AsyncSession, bucket: str) -> dict:
     if bucket not in {"issued", "overdue", "paid", "deleted"}:
         raise AppError(400, "validation")
     invoices = list((await session.scalars(select(Invoice).order_by(Invoice.created_at.desc()))).all())
-    await refresh_invoices(session, invoices)
-    if not invoices:
-        return []
-    conversations = {
-        row.id: row
-        for row in (
-            await session.scalars(
-                select(Conversation).where(Conversation.id.in_({item.conversation_id for item in invoices}))
-            )
-        ).all()
-    }
-    users = {
-        row.id: row
-        for row in (
-            await session.scalars(
-                select(User).where(User.id.in_({row.client_id for row in conversations.values()}))
-            )
-        ).all()
-    }
-    result = []
+    yookassa_raw = await refresh_invoices(session, invoices)
+    conversations = {}
+    users = {}
+    if invoices:
+        conversations = {
+            row.id: row
+            for row in (
+                await session.scalars(
+                    select(Conversation).where(Conversation.id.in_({item.conversation_id for item in invoices}))
+                )
+            ).all()
+        }
+        users = {
+            row.id: row
+            for row in (
+                await session.scalars(
+                    select(User).where(User.id.in_({row.client_id for row in conversations.values()}))
+                )
+            ).all()
+        }
+    items = []
+    rows = []
     for invoice in invoices:
-        if classify_invoice(invoice) != bucket:
-            continue
+        classified = classify_invoice(invoice)
         conversation = conversations.get(invoice.conversation_id)
         client = users.get(conversation.client_id) if conversation is not None else None
-        if client is None:
-            continue
-        result.append(present_invoice_row(invoice, client))
-    return result
+        skip = None
+        if classified != bucket:
+            skip = f"bucket={classified}"
+        elif client is None:
+            skip = "no_client"
+        else:
+            items.append(present_invoice_row(invoice, client))
+        rows.append(
+            {
+                "id": str(invoice.id),
+                "status": invoice.status,
+                "deleted_at": iso(invoice.deleted_at),
+                "expires_at": iso(invoice.expires_at),
+                "yookassa_invoice_id": invoice.yookassa_invoice_id,
+                "yookassa_payment_id": invoice.yookassa_payment_id,
+                "conversation_id": str(invoice.conversation_id),
+                "amount": invoice.amount,
+                "classify": classified,
+                "client": client.display_name if client is not None else None,
+                "skip": skip,
+            }
+        )
+    invoice_messages = int(
+        await session.scalar(select(func.count()).select_from(Message).where(Message.type == "invoice")) or 0
+    )
+    settings_row = await load_settings(session)
+    return {
+        "bucket": bucket,
+        "items": items,
+        "invoices_in_db": len(invoices),
+        "invoice_messages": invoice_messages,
+        "yookassa_connected": settings_row is not None,
+        "rows": rows,
+        "yookassa": yookassa_raw,
+    }
 
 
 async def hide_invoice(session: AsyncSession, actor: User, invoice_id: uuid.UUID) -> dict:
@@ -400,33 +432,55 @@ async def handle_notification(session: AsyncSession, payload: dict, client_host:
     return present_message(message, invoice=present_invoice(invoice, message.deleted_at is not None))
 
 
-async def refresh_invoices(session: AsyncSession, invoices: list[Invoice], limit: int = 20) -> None:
+async def refresh_invoices(session: AsyncSession, invoices: list[Invoice], limit: int = 20) -> list[dict]:
     settings_row = await load_settings(session)
     if settings_row is None:
-        return
+        return [{"error": "yookassa_not_connected"}]
     pending = [item for item in invoices if item.status == "pending" and item.deleted_at is None]
     if not pending:
-        return
+        return [{"note": "no_pending"}]
     secret = decrypt_secret(settings_row.secret_blob)
+    probes: list[dict] = []
     for invoice in pending[:limit]:
+        entry: dict = {
+            "invoice_id": str(invoice.id),
+            "yookassa_invoice_id": invoice.yookassa_invoice_id,
+            "yookassa_payment_id": invoice.yookassa_payment_id,
+        }
         try:
             if invoice.yookassa_invoice_id:
                 data = await yk.get_invoice(settings_row.shop_id, secret, invoice.yookassa_invoice_id)
+                entry["request"] = f"GET /invoices/{invoice.yookassa_invoice_id}"
                 status = str(data.get("status") or "")
                 details = data.get("payment_details")
                 payment_id = str(details["id"]) if isinstance(details, dict) and details.get("id") else None
             elif invoice.yookassa_payment_id:
                 data = await yk.get_payment(settings_row.shop_id, secret, invoice.yookassa_payment_id)
+                entry["request"] = f"GET /payments/{invoice.yookassa_payment_id}"
                 status = str(data.get("status") or "")
                 payment_id = str(data.get("id") or invoice.yookassa_payment_id)
             else:
+                entry["skip"] = "no_remote_id"
+                probes.append(entry)
                 continue
-        except (YookassaHttp, AppError):
+        except YookassaHttp as exc:
+            entry["http"] = exc.status
+            entry["body"] = exc.payload
+            probes.append(entry)
             continue
-        if await apply_status(invoice, status, payment_id):
+        except AppError as exc:
+            entry["error"] = exc.code
+            probes.append(entry)
+            continue
+        entry["http"] = 200
+        entry["body"] = data
+        entry["applied"] = await apply_status(invoice, status, payment_id)
+        if entry["applied"]:
             message = await session.get(Message, invoice.message_id)
             if message is not None:
                 message.updated_at = utcnow()
+        probes.append(entry)
+    return probes
 
 
 async def refresh_pending(session: AsyncSession, messages: list[Message]) -> None:

@@ -64,6 +64,41 @@
 
 .money-note { padding: 0 16px 8px; }
 
+.money-probe {
+  margin: 0 16px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-field);
+}
+
+.money-probe-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 4px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.money-probe-bar p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.money-raw {
+  margin: 0;
+  padding: 10px;
+  max-height: 40vh;
+  overflow: auto;
+  background: var(--in);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .money-tabs {
   display: flex;
   flex-shrink: 0;

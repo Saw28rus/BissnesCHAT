@@ -21,6 +21,13 @@ async def _open_client(client, login_name: str):
     return created.json()
 
 
+def _items(response):
+    payload = response.json()
+    if isinstance(payload, list):
+        return payload
+    return payload["items"]
+
+
 def _patch_yookassa(monkeypatch, *, me=None, bill=None, invoice=None, payment=None):
     async def get_me(shop_id: str, secret: str):
         if me is not None:
@@ -213,14 +220,14 @@ async def test_letter_and_invoice_buckets(client, monkeypatch):
     assert body["invoice"]["period"] == "Апрель 2026"
     issued = await client.get("/api/invoices?bucket=issued", headers=headers)
     assert issued.status_code == 200
-    assert issued.json()[0]["client_name"] == "ИП Лобанов"
-    hidden = await client.delete(f"/api/invoices/{issued.json()[0]['id']}", headers=headers)
+    assert _items(issued)[0]["client_name"] == "ИП Лобанов"
+    hidden = await client.delete(f"/api/invoices/{_items(issued)[0]['id']}", headers=headers)
     assert hidden.status_code == 200
     assert hidden.json()["bucket"] == "deleted"
     deleted = await client.get("/api/invoices?bucket=deleted", headers=headers)
-    assert len(deleted.json()) == 1
+    assert len(_items(deleted)) == 1
     empty = await client.get("/api/invoices?bucket=issued", headers=headers)
-    assert empty.json() == []
+    assert _items(empty) == []
 
 
 def test_yookassa_pending_is_issued():
@@ -254,11 +261,13 @@ async def test_issued_list_refreshes_pending_from_yookassa(client, monkeypatch):
     assert created.status_code == 201, created.text
     issued = await client.get("/api/invoices?bucket=issued", headers=headers)
     assert issued.status_code == 200
-    assert len(issued.json()) == 1
-    assert issued.json()[0]["status"] == "pending"
-    assert issued.json()[0]["bucket"] == "issued"
+    assert len(_items(issued)) == 1
+    assert _items(issued)[0]["status"] == "pending"
+    assert _items(issued)[0]["bucket"] == "issued"
+    assert issued.json()["invoices_in_db"] == 1
+    assert issued.json()["yookassa"][0]["body"]["status"] == "pending"
     overdue = await client.get("/api/invoices?bucket=overdue", headers=headers)
-    assert overdue.json() == []
+    assert _items(overdue) == []
 
 
 async def test_expired_yookassa_invoice_moves_to_overdue(client, monkeypatch):
@@ -281,7 +290,7 @@ async def test_expired_yookassa_invoice_moves_to_overdue(client, monkeypatch):
     )
     assert created.status_code == 201
     overdue = await client.get("/api/invoices?bucket=overdue", headers=headers)
-    assert len(overdue.json()) == 1
-    assert overdue.json()[0]["bucket"] == "overdue"
+    assert len(_items(overdue)) == 1
+    assert _items(overdue)[0]["bucket"] == "overdue"
     issued = await client.get("/api/invoices?bucket=issued", headers=headers)
-    assert issued.json() == []
+    assert _items(issued) == []

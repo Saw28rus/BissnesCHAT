@@ -30,8 +30,39 @@ export type InvoiceTemplate = {
   updated_at: string
 }
 
-export function loadInvoices(bucket: InvoiceBucket) {
-  return api<InvoiceRow[]>(`/api/invoices?bucket=${bucket}`)
+export type InvoiceListDump = {
+  http_status: number
+  ok: boolean
+  items: InvoiceRow[]
+  raw: unknown
+}
+
+function invoiceItems(raw: unknown): InvoiceRow[] {
+  if (Array.isArray(raw)) return raw as InvoiceRow[]
+  if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
+    return (raw as { items: InvoiceRow[] }).items
+  }
+  return []
+}
+
+export async function loadInvoices(bucket: InvoiceBucket): Promise<InvoiceListDump> {
+  const response = await fetch(`/api/invoices?bucket=${encodeURIComponent(bucket)}`, { credentials: "include" })
+  if (response.status === 401) {
+    window.dispatchEvent(new Event("bchat:unauthorized"))
+  }
+  const text = await response.text()
+  let raw: unknown = text
+  try {
+    raw = JSON.parse(text) as unknown
+  } catch {
+    raw = text
+  }
+  return {
+    http_status: response.status,
+    ok: response.ok,
+    items: response.ok ? invoiceItems(raw) : [],
+    raw,
+  }
 }
 
 export function createInvoice(payload: {

@@ -94,7 +94,7 @@ async def get_invoices(
     request: Request,
     bucket: str = "issued",
     session: AsyncSession = Depends(get_session),
-) -> list[dict]:
+) -> dict:
     await require_admin(request, session)
     return await list_invoices(session, bucket)
 
